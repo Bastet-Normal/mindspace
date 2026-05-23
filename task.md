@@ -1,0 +1,31 @@
+# 任务进度表
+
+- [x] 1. 全局设计系统重构：Apple 字体栈、字距字重，浅色/深色模式的高级磨砂卡片描边与投影 (修改 `css/style.css`)
+- [x] 2. macOS 风格桌面侧边栏与 iOS 浮动磨砂底栏 (修改 `css/style.css`)
+- [x] 3. iOS 经典开关 (Toggle Switch) 重构 (修改 `css/style.css`)
+- [x] 4. iOS 极简滑块 (Slider) 与分段控制器 (Segment) 重置 (修改 `css/style.css`)
+- [x] 5. 移动端 Bottom Sheet (底部抽屉模态框) 与顶部指示条自适应 (修改 `css/style.css`)
+- [x] 6. 全局动效升级：Spring 回弹曲线与点击回弹 haptic 按压反馈 (修改 `css/style.css`)
+- [x] 7. 气象导图 Bento Grid 响应式重构：解决高度参差不齐与大屏空洞感问题 (修改 `css/style.css`)
+- [x] 8. 细节打磨：多端适配与 JS 动态样式排查 (修改 `js/app.js` 或 `index.html` 等)
+- [x] 9. 气象历大屏双栏分栏与紧凑排版优化 (修改 `index.html` 和 `css/style.css`)
+- [x] 10. 去临床化温暖词汇重构：晴空指数、疗愈足迹、随笔等 (修改 `index.html`, `js/app.js`, `js/storage.js`)
+- [x] 11. 气象导图高阶视觉与布局深度优化：大屏 12 列 Bento 网格布局、日历卡片 2/3 通栏左右分栏、日历单元格扩大与彩色光晕阴影、分布图双列化 (修改 `css/style.css`, `index.html`)
+- [x] 12. 气象导图桌面版高度紧凑化调整：缩减外边距、网格 Gap、卡片 padding、日历格子大小及图表图例高度，确保桌面设备无滚动条完整显示 (修改 `css/style.css`)
+- [x] 13. 深度视觉与文案去临床化/温暖化微调：替换导航图标、重塑空状态提示、统一“随笔”与“觉察”等治愈系用词 (修改 `index.html`, `js/app.js`, `js/storage.js`)
+- [x] 14. 视觉比例优化与注册流程轻量化：移除左下角本地隐私标签、去掉注册登录的验证码/激活提示、按比例调大 Insights 气象导图布局与字体大小 (修改 `css/style.css`, `index.html`, `js/app.js`)
+- [x] 15. UI 表面优化：移除左下角本地隐私按钮及图标，移除注册验证码提示，放大气象导图及字体大小 (修改 `css/style.css`, `index.html`, `js/app.js`)
+- [x] 16. 疗愈色彩升级：将高对比度深蓝色按钮/激活状态全面替换为雅致温润的莫兰迪鼠尾草绿 (修改 `css/style.css`)
+- [x] 17. 优化“数据与安全”按钮一致性，并重构气象导图排版以完美适配手机与电脑屏幕 (修改 `css/style.css`)
+- [x] 18. 优化“正念呼吸”左侧面板空白并添加动态说明，平滑呼吸球颜色过渡，解决指示文本重叠，并统一“气象导图”视图标题 (修改 `index.html`, `js/breathing.js`, `css/style.css`)
+- [x] 19. 在 `index.html` 中恢复桌面端侧边栏底部的账号登录按钮 (位于主题切换上方)
+- [x] 20. 在 `css/style.css` 中移除气象导图标题及副标题的字号缩放覆盖，保持各页面字号大小一致
+- [x] 21. 在 `css/style.css` 中对气象导图桌面版各组件及网格进行紧凑性微缩重构
+- [x] 22. 在 `css/style.css` 中将安全避风港 (SOS) 卡片与电话号码文字颜色调整为莫兰迪温暖玫瑰砖红色
+- [x] 23. 在 `js/app.js` 与 `index.html` 中增加 Supabase 登录状态的全局缓存，并对登录模态框进行默认隐藏，消除刷新后点击模态框瞬间闪现未登录状态的体验问题
+- [x] 24. 从 `index.html` 中移除数据管理中冗余 of 云账号操作按钮，并在 `css/style.css` 中对剩余的数据管理操作按钮统一为清新的空心扁平边框，仅在 Hover 时激活微动效上色
+- [x] 25. 调整全局页面顶部间距 `#app-content`，增加顶部 padding 避免文字贴顶，使其更加匀称 (修改 `css/style.css`)
+- [x] 26. 强化“导出随笔”按钮边框颜色对比度 (修改 `css/style.css`)
+- [x] 27. 重构“内心天气”页面布局为分立的三个卡片方块框体，保证全站排版在 bento 卡片视觉规范下完全统一 (修改 `index.html` 和 `css/style.css`)
+- [x] 28. 新增云端数据库手动配置（HTML 浮层与设置区入口按钮），清空 `js/config.js` 的硬编码 Supabase API Key 凭证，添加 `.gitignore` 防范泄漏，完成开源仓库无缝安全分发 (修改 `index.html`, `js/config.js`, `.gitignore`)
+- [x] 29. 成功将项目初始化、提交并推送至远程 GitHub 仓库 `https://github.com/wangjiehu/mindspace.git` (执行 Git 指令)
