@@ -95,8 +95,9 @@ const app = {
         // Initialize Supabase Service
         if (window.SupabaseService) {
             window.SupabaseService.init();
-            await this.updateAuthUI();
-            await this.checkForceAuth();
+            this.updateAuthUI().catch((error) => {
+                console.warn('云账户状态检查失败，已继续使用本地模式。', error);
+            });
         }
 
         // Bind Events
@@ -1131,7 +1132,11 @@ const app = {
      */
     async updateAuthUI() {
         const isConfigured = window.SupabaseService && window.SupabaseService.isConfigured();
-        const user = isConfigured ? await window.SupabaseService.getUser() : null;
+        let user = null;
+        if (isConfigured) {
+            const session = await window.SupabaseService.getSession();
+            user = session?.user || null;
+        }
         
         // Cache state locally to prevent modal flashing
         this.currentUser = user;
@@ -1281,16 +1286,10 @@ const app = {
     },
 
     /**
-     * Force login/registration check on startup
+     * Legacy hook kept for older integrations. Startup now remains local-first.
      */
     async checkForceAuth() {
-        const isConfigured = window.SupabaseService && window.SupabaseService.isConfigured();
-        if (!isConfigured) return;
-
-        const user = await window.SupabaseService.getUser();
-        if (!user) {
-            this.openAuthModal();
-        }
+        return null;
     },
 
     /**

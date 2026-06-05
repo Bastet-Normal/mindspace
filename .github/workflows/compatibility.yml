@@ -1,0 +1,63 @@
+name: Compatibility and Packages
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  web-compatibility:
+    name: Web compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run browser compatibility tests
+        run: npm run test:compat
+
+  desktop-packages:
+    name: Desktop package (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            os: windows-latest
+            command: npm run desktop:build:win
+          - platform: linux
+            os: ubuntu-latest
+            command: npm run desktop:build:linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build desktop packages
+        run: ${{ matrix.command }}
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mindspace-${{ matrix.platform }}
+          path: release/*

@@ -6,3 +6,8 @@ Thumbs.db
 .gemini/
 .vscode/
 .idea/
+node_modules/
+release/
+dist/
+playwright-report/
+test-results/

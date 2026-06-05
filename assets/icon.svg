@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">MindSpace icon</title>
+  <desc id="desc">A calm circular sky mark for MindSpace.</desc>
+  <defs>
+    <linearGradient id="bg" x1="78" y1="42" x2="430" y2="470" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f7f3ec"/>
+      <stop offset="0.48" stop-color="#dce9e2"/>
+      <stop offset="1" stop-color="#cfd8ea"/>
+    </linearGradient>
+    <linearGradient id="orb" x1="172" y1="142" x2="346" y2="366" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7ba084"/>
+      <stop offset="1" stop-color="#597fa0"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#335444" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="156" fill="#ffffff" opacity="0.46" filter="url(#softShadow)"/>
+  <path d="M139 276c34-76 89-114 165-114 31 0 59 8 84 23-28-5-55-1-81 13-35 19-55 50-60 94-39-37-75-43-108-16z" fill="url(#orb)" opacity="0.96"/>
+  <path d="M174 321c24 21 52 32 84 32 50 0 91-27 123-81-21 81-67 121-137 121-42 0-77-14-106-42 13-9 25-19 36-30z" fill="#557a60" opacity="0.7"/>
+  <circle cx="350" cy="163" r="26" fill="#f4cf8d" opacity="0.88"/>
+</svg>
