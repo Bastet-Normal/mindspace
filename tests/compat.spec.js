@@ -33,6 +33,20 @@ test.describe("MindSpace web compatibility", () => {
     await expect(page.locator("#quote-content")).toBeVisible();
     await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "manifest.webmanifest");
 
+    await page.evaluate(() => {
+      document.querySelector("#auth-modal").classList.remove("hidden");
+      document.querySelector(".auth-tabs").classList.remove("hidden");
+      document.querySelector("#login-form").classList.remove("hidden");
+      document.querySelector("#register-form").classList.add("hidden");
+      app.switchAuthTab("login");
+    });
+    await expect(page.locator("#login-form")).toHaveJSProperty("noValidate", true);
+    await page.locator("#login-form .auth-submit-btn").click();
+    await expect(page.locator("#login-email-error")).toHaveText("请输入邮箱地址。");
+    await expect(page.locator("#login-email")).toHaveAttribute("aria-invalid", "true");
+    await page.locator("#auth-modal .modal-close-btn").click();
+    await expect(page.locator("#auth-modal")).toHaveClass(/hidden/);
+
     await page.locator(navigationSelector(page, "weather")).click();
     await expect(page.locator("#view-weather")).toHaveClass(/active/);
     await page.locator("#mood-note").fill(`兼容性测试记录 - ${testInfo.project.name}`);

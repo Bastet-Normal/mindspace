@@ -13,7 +13,10 @@
     "test:compat": "playwright test",
     "desktop:dev": "electron .",
     "desktop:pack": "electron-builder --dir",
+    "desktop:build:win:arm64": "electron-builder --win nsis portable --arm64 --publish never",
+    "desktop:build:win:x64": "electron-builder --win nsis portable --x64 --publish never",
     "desktop:build:win": "electron-builder --win nsis portable --x64 --arm64 --publish never",
+    "desktop:build:linux:x64": "electron-builder --linux AppImage deb --x64 --publish never",
     "desktop:build:linux": "electron-builder --linux AppImage deb --x64 --publish never",
     "desktop:build:all": "npm run desktop:build:win && npm run desktop:build:linux"
   },
@@ -21,6 +24,7 @@
     "appId": "com.wangjiehu.mindspace",
     "productName": "MindSpace",
     "asar": true,
+    "compression": "maximum",
     "directories": {
       "output": "release"
     },

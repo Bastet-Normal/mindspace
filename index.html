@@ -861,27 +861,31 @@
                 </div>
                 
                 <!-- Login Form -->
-                <form id="login-form" class="auth-form hidden">
+                <form id="login-form" class="auth-form hidden" novalidate>
                     <div class="form-group">
                         <label for="login-email">电子邮箱</label>
-                        <input type="email" id="login-email" required placeholder="请输入您的邮箱">
+                        <input type="email" id="login-email" required autocomplete="email" inputmode="email" placeholder="请输入您的邮箱" aria-describedby="login-email-error">
+                        <div id="login-email-error" class="field-error" aria-live="polite"></div>
                     </div>
                     <div class="form-group">
                         <label for="login-password">账户密码</label>
-                        <input type="password" id="login-password" required placeholder="请输入密码 (最少6位)">
+                        <input type="password" id="login-password" required autocomplete="current-password" placeholder="请输入密码 (最少6位)" aria-describedby="login-password-error">
+                        <div id="login-password-error" class="field-error" aria-live="polite"></div>
                     </div>
                     <button type="submit" class="primary-btn auth-submit-btn">登录</button>
                 </form>
 
                 <!-- Register Form -->
-                <form id="register-form" class="auth-form hidden">
+                <form id="register-form" class="auth-form hidden" novalidate>
                     <div class="form-group">
                         <label for="reg-email">电子邮箱</label>
-                        <input type="email" id="reg-email" required placeholder="请输入您的邮箱">
+                        <input type="email" id="reg-email" required autocomplete="email" inputmode="email" placeholder="请输入您的邮箱" aria-describedby="reg-email-error">
+                        <div id="reg-email-error" class="field-error" aria-live="polite"></div>
                     </div>
                     <div class="form-group">
                         <label for="reg-password">设置密码</label>
-                        <input type="password" id="reg-password" required placeholder="请设置密码 (最少6位)">
+                        <input type="password" id="reg-password" required autocomplete="new-password" placeholder="请设置密码 (最少6位)" aria-describedby="reg-password-error">
+                        <div id="reg-password-error" class="field-error" aria-live="polite"></div>
                     </div>
                     <button type="submit" class="primary-btn auth-submit-btn">注册账号</button>
                 </form>
@@ -901,14 +905,16 @@
                         <button id="btn-toggle-change-pwd" type="button" class="change-pwd-toggle-btn">
                             <ion-icon name="key-outline"></ion-icon> 修改账户密码
                         </button>
-                        <form id="change-pwd-form" class="hidden change-pwd-form">
+                        <form id="change-pwd-form" class="hidden change-pwd-form" novalidate>
                             <div class="form-group">
                                 <label for="change-old-password" class="change-pwd-label">原密码</label>
-                                <input type="password" id="change-old-password" required placeholder="请输入当前旧密码">
+                                <input type="password" id="change-old-password" required autocomplete="current-password" placeholder="请输入当前旧密码" aria-describedby="change-old-password-error">
+                                <div id="change-old-password-error" class="field-error" aria-live="polite"></div>
                             </div>
                             <div class="form-group">
                                 <label for="change-new-password" class="change-pwd-label">新密码 (最少6位)</label>
-                                <input type="password" id="change-new-password" required placeholder="请输入新密码">
+                                <input type="password" id="change-new-password" required autocomplete="new-password" placeholder="请输入新密码" aria-describedby="change-new-password-error">
+                                <div id="change-new-password-error" class="field-error" aria-live="polite"></div>
                             </div>
                             <div class="change-pwd-actions">
                                 <button type="button" id="btn-cancel-change-pwd" class="secondary-btn change-pwd-btn">取消</button>

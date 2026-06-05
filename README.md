@@ -37,7 +37,17 @@ npm run desktop:build:win
 npm run desktop:build:linux
 ```
 
+只发布单一平台/架构时可使用更小的定向构建：
+
+```bash
+npm run desktop:build:win:arm64
+npm run desktop:build:win:x64
+npm run desktop:build:linux:x64
+```
+
 Windows 本机可直接构建 Windows 包；Linux 包建议在 Linux 环境或仓库内置的 GitHub Actions 中构建。
+
+> 体积说明：Electron 兼容性最好，但每个桌面包都会携带 Chromium。若后续要进一步压缩体积且不损耗现有网页内容，更优路线是保留当前静态应用内核，桌面端迁移到 Tauri/WebView2，移动端继续使用 PWA 或 Capacitor 壳。
 
 ### 开启云同步（可选）
 如果您希望开启账号登录并跨设备同步数据：

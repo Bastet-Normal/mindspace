@@ -1048,6 +1048,7 @@ const app = {
             cancelChangePwdBtn.addEventListener('click', () => {
                 if (changePwdForm) changePwdForm.classList.add('hidden');
                 if (toggleChangePwdBtn) toggleChangePwdBtn.classList.remove('hidden');
+                if (changePwdForm) this.clearFormErrors(changePwdForm);
                 // Reset inputs
                 document.getElementById('change-old-password').value = '';
                 document.getElementById('change-new-password').value = '';
@@ -1055,15 +1056,20 @@ const app = {
         }
 
         if (changePwdForm) {
+            changePwdForm.setAttribute('novalidate', 'novalidate');
+            this.bindSoftValidation(changePwdForm);
             changePwdForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const oldPassword = document.getElementById('change-old-password').value;
                 const newPassword = document.getElementById('change-new-password').value;
 
+                this.clearFormErrors(changePwdForm);
+                if (!oldPassword) {
+                    this.setFieldError(document.getElementById('change-old-password'), '请输入当前密码。');
+                    return;
+                }
                 if (newPassword.length < 6) {
-                    app.showModal('密码长度不足', '新密码长度不能少于6位，请重新输入更长的密码。', [
-                        { text: '好的', class: 'primary-btn', onClick: () => app.hideModal() }
-                    ]);
+                    this.setFieldError(document.getElementById('change-new-password'), '新密码至少需要 6 位。');
                     return;
                 }
 
@@ -1072,6 +1078,7 @@ const app = {
                     // Reset and collapse
                     document.getElementById('change-old-password').value = '';
                     document.getElementById('change-new-password').value = '';
+                    this.clearFormErrors(changePwdForm);
                     if (changePwdForm) changePwdForm.classList.add('hidden');
                     if (toggleChangePwdBtn) toggleChangePwdBtn.classList.remove('hidden');
 
@@ -1108,9 +1115,13 @@ const app = {
         const loginForm = document.getElementById('login-form');
         const registerForm = document.getElementById('register-form');
         if (loginForm) {
+            loginForm.setAttribute('novalidate', 'novalidate');
+            this.bindSoftValidation(loginForm);
             loginForm.addEventListener('submit', (e) => this.handleLogin(e));
         }
         if (registerForm) {
+            registerForm.setAttribute('novalidate', 'novalidate');
+            this.bindSoftValidation(registerForm);
             registerForm.addEventListener('submit', (e) => this.handleRegister(e));
         }
 
@@ -1229,20 +1240,21 @@ const app = {
             // Synchronously show state based on cached credentials to prevent flashing
             if (this.authChecked) {
                 if (authLoading) authLoading.classList.add('hidden');
+                if (loginForm) this.clearFormErrors(loginForm);
+                if (registerForm) this.clearFormErrors(registerForm);
+                closeBtns.forEach(btn => btn.classList.remove('hidden'));
                 if (this.currentUser) {
                     if (loginForm) loginForm.classList.add('hidden');
                     if (registerForm) registerForm.classList.add('hidden');
                     if (tabs) tabs.classList.add('hidden');
                     if (loggedInState) loggedInState.classList.remove('hidden');
                     if (userEmail) userEmail.innerText = this.currentUser.email;
-                    closeBtns.forEach(btn => btn.classList.remove('hidden'));
                 } else {
                     if (loginForm) loginForm.classList.remove('hidden');
                     if (registerForm) registerForm.classList.add('hidden');
                     if (tabs) tabs.classList.remove('hidden');
                     if (loggedInState) loggedInState.classList.add('hidden');
                     this.switchAuthTab('login');
-                    closeBtns.forEach(btn => btn.classList.add('hidden'));
                 }
             } else {
                 // If auth is not checked yet, show a clean loading state
@@ -1251,7 +1263,7 @@ const app = {
                 if (registerForm) registerForm.classList.add('hidden');
                 if (tabs) tabs.classList.add('hidden');
                 if (loggedInState) loggedInState.classList.add('hidden');
-                closeBtns.forEach(btn => btn.classList.add('hidden'));
+                closeBtns.forEach(btn => btn.classList.remove('hidden'));
             }
 
             modal.classList.remove('hidden');
@@ -1279,7 +1291,7 @@ const app = {
                     } else {
                         this.switchAuthTab('login');
                     }
-                    closeBtns.forEach(btn => btn.classList.add('hidden'));
+                    closeBtns.forEach(btn => btn.classList.remove('hidden'));
                 }
             });
         }
@@ -1315,6 +1327,8 @@ const app = {
         const registerForm = document.getElementById('register-form');
         const tabLogin = document.getElementById('tab-login');
         const tabRegister = document.getElementById('tab-register');
+        if (loginForm) this.clearFormErrors(loginForm);
+        if (registerForm) this.clearFormErrors(registerForm);
 
         if (tab === 'login') {
             if (loginForm) loginForm.classList.remove('hidden');
@@ -1327,6 +1341,89 @@ const app = {
             if (tabLogin) tabLogin.classList.remove('active');
             if (tabRegister) tabRegister.classList.add('active');
         }
+    },
+
+    bindSoftValidation(form) {
+        form.querySelectorAll('input, textarea').forEach(field => {
+            field.addEventListener('input', () => this.clearFieldError(field));
+            field.addEventListener('blur', () => {
+                if (field.value.trim()) {
+                    this.clearFieldError(field);
+                }
+            });
+        });
+    },
+
+    getFieldErrorElement(field) {
+        if (!field) return null;
+        const describedBy = field.getAttribute('aria-describedby');
+        if (describedBy) {
+            return document.getElementById(describedBy.split(/\s+/)[0]);
+        }
+        return document.getElementById(`${field.id}-error`);
+    },
+
+    setFieldError(field, message) {
+        if (!field) return;
+        const group = field.closest('.form-group');
+        const error = this.getFieldErrorElement(field);
+        if (group) group.classList.add('has-error');
+        field.setAttribute('aria-invalid', 'true');
+        if (error) {
+            error.textContent = message;
+            error.classList.add('active');
+        }
+        field.focus({ preventScroll: true });
+        field.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    },
+
+    clearFieldError(field) {
+        if (!field) return;
+        const group = field.closest('.form-group');
+        const error = this.getFieldErrorElement(field);
+        if (group) group.classList.remove('has-error');
+        field.removeAttribute('aria-invalid');
+        if (error) {
+            error.textContent = '';
+            error.classList.remove('active');
+        }
+    },
+
+    clearFormErrors(form) {
+        if (!form) return;
+        form.querySelectorAll('input, textarea').forEach(field => this.clearFieldError(field));
+    },
+
+    isValidEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    },
+
+    validateAuthForm(form, mode) {
+        if (!form) return false;
+        this.clearFormErrors(form);
+
+        const emailInput = form.querySelector('input[type="email"]');
+        const passwordInput = form.querySelector('input[type="password"]');
+        const email = emailInput ? emailInput.value.trim() : '';
+        const password = passwordInput ? passwordInput.value : '';
+
+        if (!email) {
+            this.setFieldError(emailInput, '请输入邮箱地址。');
+            return false;
+        }
+        if (!this.isValidEmail(email)) {
+            this.setFieldError(emailInput, '请输入有效的邮箱地址。');
+            return false;
+        }
+        if (!password) {
+            this.setFieldError(passwordInput, mode === 'register' ? '请设置登录密码。' : '请输入账户密码。');
+            return false;
+        }
+        if (password.length < 6) {
+            this.setFieldError(passwordInput, '密码至少需要 6 位。');
+            return false;
+        }
+        return true;
     },
 
     /**
@@ -1362,6 +1459,8 @@ const app = {
      */
     async handleLogin(e) {
         e.preventDefault();
+        if (!this.validateAuthForm(e.currentTarget, 'login')) return;
+
         const email = document.getElementById('login-email').value.trim();
         const password = document.getElementById('login-password').value;
 
@@ -1419,6 +1518,8 @@ const app = {
      */
     async handleRegister(e) {
         e.preventDefault();
+        if (!this.validateAuthForm(e.currentTarget, 'register')) return;
+
         const email = document.getElementById('reg-email').value.trim();
         const password = document.getElementById('reg-password').value;
 
