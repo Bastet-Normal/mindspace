@@ -39,12 +39,10 @@ test.describe("MindSpace web compatibility", () => {
     await page.locator("#save-log-btn").click();
     await expect(page.locator("#modal-container")).toBeVisible();
     await expect(page.locator("#modal-title")).toContainText("已记入心空");
-    await page.locator("#modal-close").click({ force: true });
+    await page.getByRole("button", { name: "查看随笔" }).click();
     await expect(page.locator("#modal-container")).toHaveClass(/hidden/);
-
-    await page.locator(navigationSelector(page, "journal")).click();
     await expect(page.locator("#view-journal")).toHaveClass(/active/);
-    await expect(page.locator("#journal-list")).toContainText("兼容性测试记录");
+    await expect(page.getByText("兼容性测试记录")).toBeVisible();
 
     await page.locator(navigationSelector(page, "breathing")).click();
     await expect(page.locator("#view-breathing")).toHaveClass(/active/);
