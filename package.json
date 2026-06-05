@@ -2,7 +2,10 @@
   "name": "mindspace",
   "version": "1.0.0",
   "description": "MindSpace - 本地优先的心理健康与正念呼吸引导助手。",
-  "author": "wangjiehu",
+  "author": {
+    "name": "wangjiehu",
+    "email": "wangjiehu@users.noreply.github.com"
+  },
   "private": true,
   "main": "desktop/main.cjs",
   "scripts": {
@@ -62,6 +65,7 @@
     },
     "linux": {
       "icon": "assets/icon.png",
+      "maintainer": "wangjiehu <wangjiehu@users.noreply.github.com>",
       "target": [
         {
           "target": "AppImage",
