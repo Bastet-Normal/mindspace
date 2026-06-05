@@ -177,6 +177,18 @@ const MindSpaceStorage = {
         localStorage.removeItem(this.KEYS.SETTINGS);
         localStorage.removeItem(this.KEYS.STATS);
         localStorage.removeItem(this.KEYS.HISTORY);
+        // Also clear Supabase configuration and session data
+        localStorage.removeItem('supabase_url');
+        localStorage.removeItem('supabase_anon_key');
+        // Clear any Supabase auth session keys (they use a prefix pattern)
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
     },
 
     /**
@@ -279,9 +291,21 @@ const MindSpaceStorage = {
             totalBreathingSeconds += (day.breathingSeconds || 0);
         });
 
-        // Compute streak
+        // Compute streak: count consecutive days with activity, starting from today going backwards.
+        // If today has no activity yet, start checking from yesterday (the day is still in progress).
         let streak = 0;
         let checkDate = new Date();
+
+        // Format today's date
+        const todayStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
+        const todayData = history[todayStr];
+        const todayHasActivity = todayData && ((todayData.focusSeconds || 0) > 0 || (todayData.breathingSeconds || 0) > 0);
+
+        if (!todayHasActivity) {
+            // Today has no activity yet, start from yesterday
+            checkDate.setDate(checkDate.getDate() - 1);
+        }
+
         while (true) {
             const y = checkDate.getFullYear();
             const m = String(checkDate.getMonth() + 1).padStart(2, '0');
@@ -293,20 +317,6 @@ const MindSpaceStorage = {
                 streak++;
                 checkDate.setDate(checkDate.getDate() - 1);
             } else {
-                // Check if yesterday is active when streak is 0
-                if (streak === 0) {
-                    const yesterday = new Date();
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    const yY = yesterday.getFullYear();
-                    const yM = String(yesterday.getMonth() + 1).padStart(2, '0');
-                    const yD = String(yesterday.getDate()).padStart(2, '0');
-                    const yesterdayStr = `${yY}-${yM}-${yD}`;
-                    const yData = history[yesterdayStr];
-                    if (yData && ((yData.focusSeconds || 0) > 0 || (yData.breathingSeconds || 0) > 0)) {
-                        checkDate = yesterday;
-                        continue;
-                    }
-                }
                 break;
             }
         }

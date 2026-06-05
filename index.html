@@ -312,6 +312,14 @@
                                 <p class="desc-text">源自古印度瑜伽的呼吸技术，被公认为“天然的镇静剂”。通过延长呼气时间，激活副交感神经，有助于迅速降低焦虑、平复心率并帮助入眠。</p>
                             </div>
 
+                            <div class="breath-extra-options">
+                                <label class="option-toggle">
+                                    <input type="checkbox" id="breath-sound-prompt">
+                                    <span class="toggle-slider"></span>
+                                    <span class="toggle-label">阶段切换提示音</span>
+                                </label>
+                            </div>
+
                             <div class="breathing-controls desktop-only-margin" style="width: 100%; display: flex; justify-content: center;">
                                 <button id="start-breath-btn" class="primary-btn large-btn" style="max-width: 280px;">
                                     <ion-icon name="play-outline"></ion-icon> 开始正念
@@ -325,6 +333,7 @@
                         <!-- Visualizer panel -->
                         <div class="breathing-panel-visual card">
                             <div class="breath-visualizer-container">
+                                <canvas id="breath-particle-canvas"></canvas>
                                 <div class="breath-outer-ring"></div>
                                 <div class="breath-orb" id="breath-orb"></div>
                                 <div class="breath-guide-text" id="breath-instruction"></div>
@@ -907,7 +916,7 @@
     </div>
 
     <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4"></script>
     <script src="js/config.js"></script>
     <script src="js/supabase-service.js"></script>
     <script src="js/quotes.js"></script>

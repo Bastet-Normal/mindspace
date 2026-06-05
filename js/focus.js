@@ -13,6 +13,7 @@ const MindSpaceFocusTimer = {
     currentMode: 'work', // 'work' or 'break'
     soundAlertEnabled: true,
     alarmAudio: null,
+    _pendingFocusSeconds: 0,
 
     // SVG Config
     CIRCUMFERENCE: 596.9, // 2 * Math.PI * 95
@@ -143,7 +144,9 @@ const MindSpaceFocusTimer = {
                     this.setCustomDuration(minutes);
                     app.hideModal();
                 } else {
-                    alert('请输入 1 到 180 之间的有效数字');
+                    app.showModal('输入无效', '请输入 1 到 180 之间的有效专注分钟数。', [
+                        { text: '好的', class: 'primary-btn', onClick: () => app.hideModal() }
+                    ]);
                 }
             }}
         ]);
@@ -188,8 +191,12 @@ const MindSpaceFocusTimer = {
             this.updateDisplay();
 
             if (this.currentMode === 'work') {
-                if (typeof MindSpaceStorage !== 'undefined') {
-                    MindSpaceStorage.addFocusTime(1);
+                this._pendingFocusSeconds++;
+                if (this._pendingFocusSeconds >= 5) {
+                    if (typeof MindSpaceStorage !== 'undefined') {
+                        MindSpaceStorage.addFocusTime(this._pendingFocusSeconds);
+                    }
+                    this._pendingFocusSeconds = 0;
                 }
             }
 
@@ -204,6 +211,14 @@ const MindSpaceFocusTimer = {
      */
     pause() {
         if (!this.isRunning) return;
+
+        // Flush pending focus seconds
+        if (this._pendingFocusSeconds > 0 && this.currentMode === 'work') {
+            if (typeof MindSpaceStorage !== 'undefined') {
+                MindSpaceStorage.addFocusTime(this._pendingFocusSeconds);
+            }
+            this._pendingFocusSeconds = 0;
+        }
 
         this.isRunning = false;
         clearInterval(this.timerId);
@@ -248,6 +263,14 @@ const MindSpaceFocusTimer = {
      * Triggered when timer hits 0
      */
     complete() {
+        // Flush pending focus seconds before completing
+        if (this._pendingFocusSeconds > 0 && this.currentMode === 'work') {
+            if (typeof MindSpaceStorage !== 'undefined') {
+                MindSpaceStorage.addFocusTime(this._pendingFocusSeconds);
+            }
+            this._pendingFocusSeconds = 0;
+        }
+
         this.pause();
 
         // Play alarm sound if enabled

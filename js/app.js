@@ -87,7 +87,9 @@ const app = {
         MindSpaceBreathing.init(
             document.getElementById('breath-orb'),
             document.getElementById('breath-instruction'),
-            document.getElementById('breath-total-time')
+            document.getElementById('breath-total-time'),
+            document.getElementById('breath-mode-desc'),
+            document.getElementById('breath-particle-canvas')
         );
 
         // Initialize Supabase Service
@@ -279,7 +281,7 @@ const app = {
                         </div>
                         <div class="logged-mood-info">
                             <div class="logged-mood-name">${weatherConfig.name}</div>
-                            <div class="logged-mood-note-preview">${noteText}</div>
+                            <div class="logged-mood-note-preview">${escapeHTML(noteText)}</div>
                         </div>
                     </div>
                     <button class="secondary-btn small-btn" onclick="app.router.navigate('weather')" style="width: auto; font-size: 0.75rem; padding: 4px 12px;">重新记录</button>
@@ -323,7 +325,7 @@ const app = {
             const logsOnDay = logs.filter(log => new Date(log.timestamp).toDateString() === targetDateStr);
             const mood = logsOnDay.length > 0 ? logsOnDay[0].weather : null;
             weeklyStats.push({
-                dayLabel: targetDate.getDay() === new Date().getDay() ? '今天' : dayNames[targetDate.getDay()],
+                dayLabel: targetDate.toDateString() === new Date().toDateString() ? '今天' : dayNames[targetDate.getDay()],
                 mood: mood
             });
         }
@@ -377,7 +379,7 @@ const app = {
                     <span class="journal-preview-date">${formattedDate}</span>
                     <span class="journal-preview-tag">${weatherInfo.emoji} ${weatherInfo.name}</span>
                 </div>
-                <p class="journal-preview-text">${previewText}</p>
+                <p class="journal-preview-text">${escapeHTML(previewText)}</p>
                 <div style="text-align: right; margin-top: 8px;">
                     <a href="javascript:void(0)" onclick="app.router.navigate('journal')" style="font-size: 0.75rem; color: var(--accent-color); text-decoration: none; font-weight: 500;">查看全部随笔 &rarr;</a>
                 </div>
@@ -490,7 +492,7 @@ const app = {
             let tagsHtml = '';
             if (log.tags && log.tags.length > 0) {
                 tagsHtml = `<div class="journal-tags">` + 
-                    log.tags.map(t => `<span class="tag">${t}</span>`).join('') + 
+                    log.tags.map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('') + 
                     `</div>`;
             }
 
@@ -531,7 +533,7 @@ const app = {
         let tagsHtml = '';
         if (log.tags && log.tags.length > 0) {
             tagsHtml = `<div class="journal-tags" style="margin-bottom: 12px;">` + 
-                log.tags.map(t => `<span class="tag">${t}</span>`).join('') + 
+                log.tags.map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('') + 
                 `</div>`;
         }
 
@@ -826,7 +828,7 @@ const app = {
                     const tagRow = document.createElement('div');
                     tagRow.className = 'tag-analysis-row';
                     tagRow.innerHTML = `
-                        <span class="tag-analysis-name" title="${tag}">${tag}</span>
+                        <span class="tag-analysis-name" title="${escapeHTML(tag)}">${escapeHTML(tag)}</span>
                         <div class="tag-analysis-track">
                             <div class="tag-analysis-fill" style="width: 0%"></div>
                         </div>
@@ -940,6 +942,14 @@ const app = {
             });
         });
 
+        // Breathing sound prompt toggle
+        const breathSoundToggle = document.getElementById('breath-sound-prompt');
+        if (breathSoundToggle) {
+            breathSoundToggle.addEventListener('change', (e) => {
+                MindSpaceBreathing.toggleSoundPrompt(e.target.checked);
+            });
+        }
+
         // Search in journal typing
         document.getElementById('journal-search').addEventListener('input', () => {
             this.renderJournalList();
@@ -1050,7 +1060,9 @@ const app = {
                 const newPassword = document.getElementById('change-new-password').value;
 
                 if (newPassword.length < 6) {
-                    alert('新密码长度不能少于6位！');
+                    app.showModal('密码长度不足', '新密码长度不能少于6位，请重新输入更长的密码。', [
+                        { text: '好的', class: 'primary-btn', onClick: () => app.hideModal() }
+                    ]);
                     return;
                 }
 
@@ -1066,7 +1078,9 @@ const app = {
                         { text: '好的', class: 'primary-btn', onClick: () => this.hideModal() }
                     ]);
                 } catch (err) {
-                    alert('修改密码失败: ' + err.message);
+                    app.showModal('修改密码失败', '密码修改过程中发生了错误：' + escapeHTML(err.message), [
+                        { text: '确定', class: 'secondary-btn', onClick: () => app.hideModal() }
+                    ]);
                 }
             });
         }
@@ -1324,7 +1338,9 @@ const app = {
         const anonKey = document.getElementById('config-anon-key').value.trim();
         
         if (!url || !anonKey) {
-            alert('请完整填写 Supabase API URL 与 Anon Key。');
+            app.showModal('配置不完整', '请完整填写 Supabase API URL 与 Anon Key 后再保存。', [
+                { text: '好的', class: 'primary-btn', onClick: () => app.hideModal() }
+            ]);
             return;
         }
 
@@ -1336,7 +1352,9 @@ const app = {
                 { text: '好的', class: 'primary-btn', onClick: () => this.hideModal() }
             ]);
         } else {
-            alert('客户端初始化失败，请检查 URL 或 Anon Key 格式是否正确。');
+            app.showModal('连接失败', '客户端初始化失败，请检查 Supabase API URL 或 Anon Key 格式是否正确。', [
+                { text: '确定', class: 'secondary-btn', onClick: () => app.hideModal() }
+            ]);
         }
     },
 
@@ -1391,7 +1409,9 @@ const app = {
             if (msg.includes('Email not confirmed') || msg.toLowerCase().includes('confirm') || msg.toLowerCase().includes('verify') || msg.toLowerCase().includes('code') || msg.toLowerCase().includes('otp')) {
                 msg = '邮箱尚未激活或密码错误，请检查您的账户信息。';
             }
-            alert('登录失败: ' + msg);
+            app.showModal('登录失败', escapeHTML(msg), [
+                { text: '确定', class: 'secondary-btn', onClick: () => app.hideModal() }
+            ]);
         }
     },
 
@@ -1460,7 +1480,9 @@ const app = {
             if (msg.toLowerCase().includes('confirm') || msg.toLowerCase().includes('verify') || msg.toLowerCase().includes('code') || msg.toLowerCase().includes('otp')) {
                 msg = '账号创建失败，请检查输入信息或稍后重试。';
             }
-            alert('注册失败: ' + msg);
+            app.showModal('注册失败', escapeHTML(msg), [
+                { text: '确定', class: 'secondary-btn', onClick: () => app.hideModal() }
+            ]);
         }
     },
 
@@ -1480,7 +1502,9 @@ const app = {
                 }}
             ]);
         } catch (err) {
-            alert('退出登录失败: ' + err.message);
+            app.showModal('退出失败', '退出登录过程中发生了错误：' + escapeHTML(err.message), [
+                { text: '确定', class: 'secondary-btn', onClick: () => app.hideModal() }
+            ]);
         }
     },
 

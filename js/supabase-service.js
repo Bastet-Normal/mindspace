@@ -126,7 +126,10 @@
         async uploadLog(log) {
             if (!client) return null;
             const user = await this.getUser();
-            if (!user) return null;
+            if (!user) {
+                console.warn('uploadLog: 用户未登录或会话已过期，跳过云端同步。');
+                return null;
+            }
 
             const { data, error } = await client
                 .from('mood_logs')
@@ -147,7 +150,10 @@
         async deleteLog(logId) {
             if (!client) return;
             const user = await this.getUser();
-            if (!user) return;
+            if (!user) {
+                console.warn('deleteLog: 用户未登录或会话已过期，仅删除本地记录。');
+                return;
+            }
 
             const { error } = await client
                 .from('mood_logs')
