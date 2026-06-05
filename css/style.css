@@ -2446,16 +2446,16 @@ body {
 .auth-tabs {
     display: flex;
     gap: 4px;
-    background: rgba(85, 122, 96, 0.08);
+    background: rgba(120, 120, 128, 0.13);
     padding: 4px;
     border-radius: 15px;
     margin-bottom: 22px;
-    border: 1px solid rgba(85, 122, 96, 0.08);
-    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.38), inset 0 -1px 2px rgba(29, 29, 31, 0.04);
+    border: 1px solid rgba(120, 120, 128, 0.16);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.18), inset 0 -1px 2px rgba(29, 29, 31, 0.04);
 }
 [data-theme="dark"] .auth-tabs {
-    background: rgba(158, 192, 167, 0.1);
-    border-color: rgba(158, 192, 167, 0.12);
+    background: rgba(120, 120, 128, 0.24);
+    border-color: rgba(255, 255, 255, 0.08);
     box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.06), inset 0 -1px 2px rgba(0, 0, 0, 0.22);
 }
 .auth-tab {
@@ -2475,23 +2475,24 @@ body {
     transition: background 0.25s var(--ease-smooth), color 0.25s var(--ease-smooth), box-shadow 0.25s var(--ease-smooth), transform 0.2s var(--ease-smooth);
 }
 .auth-tab.active {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.44));
+    background: rgba(85, 122, 96, 0.13);
     color: var(--accent-color);
-    box-shadow: 0 8px 22px rgba(85, 122, 96, 0.12), inset 0 0 0 1px rgba(85, 122, 96, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(85, 122, 96, 0.12), 0 6px 14px rgba(29, 29, 31, 0.06);
 }
 [data-theme="dark"] .auth-tab.active {
-    background: linear-gradient(180deg, rgba(158, 192, 167, 0.18), rgba(158, 192, 167, 0.08));
+    background: rgba(158, 192, 167, 0.16);
     color: #DDEBE0;
-    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22), inset 0 0 0 1px rgba(158, 192, 167, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(158, 192, 167, 0.14), 0 6px 14px rgba(0, 0, 0, 0.18);
 }
 .auth-tab:focus-visible {
     box-shadow: inset 0 0 0 2px rgba(85, 122, 96, 0.28);
 }
 .auth-tab.active:focus-visible {
-    box-shadow: 0 8px 22px rgba(85, 122, 96, 0.12), inset 0 0 0 2px rgba(85, 122, 96, 0.28);
+    box-shadow: inset 0 0 0 2px rgba(85, 122, 96, 0.28), 0 6px 14px rgba(29, 29, 31, 0.06);
 }
 .auth-tab:active {
     transform: scale(0.98);
+    background: rgba(85, 122, 96, 0.18);
 }
 .form-group {
     display: flex;
@@ -2509,8 +2510,8 @@ body {
     padding: 12px 14px;
     min-height: 46px;
     border-radius: 16px;
-    border: 1px solid rgba(29, 29, 31, 0.08);
-    background: rgba(255, 255, 255, 0.42);
+    border: 1px solid rgba(120, 120, 128, 0.14);
+    background: rgba(120, 120, 128, 0.12);
     color: var(--text-primary);
     font-family: var(--font-main);
     font-size: 0.9rem;
@@ -2522,33 +2523,38 @@ body {
 }
 [data-theme="dark"] .form-group input,
 [data-theme="dark"] .form-group textarea {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(120, 120, 128, 0.2);
     border-color: rgba(255, 255, 255, 0.08);
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.24);
 }
 .form-group input:focus, .form-group textarea:focus {
     border-color: rgba(85, 122, 96, 0.45);
-    background: rgba(255, 255, 255, 0.56);
+    background: rgba(120, 120, 128, 0.18);
     box-shadow: inset 0 1px 2px rgba(29, 29, 31, 0.03), 0 0 0 4px rgba(85, 122, 96, 0.12);
 }
 
 .form-group input:hover, .form-group textarea:hover {
     border-color: rgba(85, 122, 96, 0.28);
+    background: rgba(120, 120, 128, 0.15);
+}
+.form-group input:active, .form-group textarea:active {
+    background: rgba(120, 120, 128, 0.2);
 }
 [data-theme="dark"] .form-group input:hover,
 [data-theme="dark"] .form-group textarea:hover {
     border-color: rgba(158, 192, 167, 0.3);
+    background: rgba(120, 120, 128, 0.24);
 }
 [data-theme="dark"] .form-group input:focus,
 [data-theme="dark"] .form-group textarea:focus {
     border-color: rgba(158, 192, 167, 0.5);
-    background: rgba(255, 255, 255, 0.075);
+    background: rgba(120, 120, 128, 0.28);
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18), 0 0 0 4px rgba(158, 192, 167, 0.14);
 }
 .form-group.has-error input,
 .form-group.has-error textarea {
     border-color: rgba(201, 92, 82, 0.72);
-    background: rgba(255, 246, 245, 0.62);
+    background: rgba(201, 92, 82, 0.08);
     box-shadow: 0 0 0 4px rgba(201, 92, 82, 0.1);
 }
 [data-theme="dark"] .form-group.has-error input,
@@ -2819,6 +2825,30 @@ body {
     
     [data-theme="dark"] .modal::before {
         background: rgba(255, 255, 255, 0.18);
+    }
+
+    #auth-modal .modal {
+        border-radius: 28px 28px 0 0;
+        max-height: 86vh;
+        padding: 18px 20px calc(26px + env(safe-area-inset-bottom)) 20px;
+    }
+
+    #auth-modal .auth-tabs {
+        margin-bottom: 18px;
+    }
+
+    #auth-modal .form-group {
+        margin-bottom: 16px;
+    }
+
+    #auth-modal .form-group input {
+        min-height: 54px;
+        font-size: 16px;
+    }
+
+    #auth-modal .auth-submit-btn {
+        min-height: 54px;
+        font-size: 1rem;
     }
 }
 

@@ -43,13 +43,19 @@ module.exports = defineConfig({
       }
     },
     {
-      name: "mobile-chrome",
+      name: "mobile-android-chrome",
       use: {
         ...devices["Pixel 7"]
       }
     },
     {
-      name: "mobile-safari",
+      name: "mobile-android-narrow",
+      use: {
+        ...devices["Galaxy S8"]
+      }
+    },
+    {
+      name: "mobile-ios-safari",
       use: {
         ...devices["iPhone 14"]
       }

@@ -9,6 +9,7 @@ const app = {
     // Auth Cache State
     currentUser: null,
     authChecked: false,
+    authGateActive: false,
 
     // Router State
     router: {
@@ -95,7 +96,7 @@ const app = {
         // Initialize Supabase Service
         if (window.SupabaseService) {
             window.SupabaseService.init();
-            this.updateAuthUI().catch((error) => {
+            await this.updateAuthUI().catch((error) => {
                 console.warn('云账户状态检查失败，已继续使用本地模式。', error);
             });
         }
@@ -105,6 +106,9 @@ const app = {
 
         // Render Initial Dashboard
         this.renderDashboard();
+
+        // Require account login before use when cloud auth is configured.
+        this.enforceStartupAuth();
     },
 
     /**
@@ -1010,6 +1014,9 @@ const app = {
             btn.addEventListener('click', (e) => {
                 const modal = e.target.closest('.modal-overlay');
                 if (modal) {
+                    if (modal.id === 'auth-modal' && modal.dataset.forceAuth === 'true') {
+                        return;
+                    }
                     modal.classList.add('hidden');
                     this.forceRepaint();
                 }
@@ -1021,9 +1028,8 @@ const app = {
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
                     if (modal.id === 'auth-modal') {
-                        const closeBtn = modal.querySelector('.modal-close-btn');
-                        if (closeBtn && closeBtn.classList.contains('hidden')) {
-                            return; // Cannot close if close button is hidden (forced login on startup)
+                        if (modal.dataset.forceAuth === 'true') {
+                            return;
                         }
                     }
                     modal.classList.add('hidden');
@@ -1163,6 +1169,7 @@ const app = {
         const settingsAuthBtn = document.getElementById('settings-auth-btn');
 
         if (user) {
+            this.releaseAuthGate();
             const shortEmail = user.email.split('@')[0];
             if (sidebarText) sidebarText.innerText = `已登录(${shortEmail})`;
             if (sidebarIcon) sidebarIcon.setAttribute('name', 'cloud-done-outline');
@@ -1208,7 +1215,28 @@ const app = {
         }
     },
 
-    openAuthModal() {
+    enforceStartupAuth() {
+        const isConfigured = window.SupabaseService && window.SupabaseService.isConfigured();
+        if (!isConfigured || this.currentUser) {
+            this.releaseAuthGate();
+            return;
+        }
+
+        this.authGateActive = true;
+        document.body.classList.add('auth-gate-active');
+        this.openAuthModal({ force: true });
+    },
+
+    releaseAuthGate() {
+        this.authGateActive = false;
+        document.body.classList.remove('auth-gate-active');
+        const modal = document.getElementById('auth-modal');
+        if (modal) {
+            modal.dataset.forceAuth = 'false';
+        }
+    },
+
+    openAuthModal(options = {}) {
         const isConfigured = window.SupabaseService && window.SupabaseService.isConfigured();
         if (!isConfigured) {
             this.showModal('数据库连接配置缺失', '本应用目前处于本地存储/离线模式。若要启用账号登录及云端同步服务，请先配置您的 Supabase 连接凭证。如果您是项目所有者，也可在 `js/config.js` 中直接写入凭证。', [
@@ -1223,6 +1251,8 @@ const app = {
 
         const modal = document.getElementById('auth-modal');
         if (modal) {
+            const forceAuth = Boolean(options.force);
+            modal.dataset.forceAuth = forceAuth ? 'true' : 'false';
             const loginForm = document.getElementById('login-form');
             const registerForm = document.getElementById('register-form');
             const loggedInState = document.getElementById('logged-in-state');
@@ -1242,14 +1272,15 @@ const app = {
                 if (authLoading) authLoading.classList.add('hidden');
                 if (loginForm) this.clearFormErrors(loginForm);
                 if (registerForm) this.clearFormErrors(registerForm);
-                closeBtns.forEach(btn => btn.classList.remove('hidden'));
                 if (this.currentUser) {
+                    closeBtns.forEach(btn => btn.classList.remove('hidden'));
                     if (loginForm) loginForm.classList.add('hidden');
                     if (registerForm) registerForm.classList.add('hidden');
                     if (tabs) tabs.classList.add('hidden');
                     if (loggedInState) loggedInState.classList.remove('hidden');
                     if (userEmail) userEmail.innerText = this.currentUser.email;
                 } else {
+                    closeBtns.forEach(btn => btn.classList.toggle('hidden', forceAuth));
                     if (loginForm) loginForm.classList.remove('hidden');
                     if (registerForm) registerForm.classList.add('hidden');
                     if (tabs) tabs.classList.remove('hidden');
@@ -1263,7 +1294,7 @@ const app = {
                 if (registerForm) registerForm.classList.add('hidden');
                 if (tabs) tabs.classList.add('hidden');
                 if (loggedInState) loggedInState.classList.add('hidden');
-                closeBtns.forEach(btn => btn.classList.remove('hidden'));
+                closeBtns.forEach(btn => btn.classList.toggle('hidden', forceAuth));
             }
 
             modal.classList.remove('hidden');
@@ -1275,6 +1306,7 @@ const app = {
 
                 if (authLoading) authLoading.classList.add('hidden');
                 if (user) {
+                    this.releaseAuthGate();
                     if (loginForm) loginForm.classList.add('hidden');
                     if (registerForm) registerForm.classList.add('hidden');
                     if (tabs) tabs.classList.add('hidden');
@@ -1282,26 +1314,27 @@ const app = {
                     if (userEmail) userEmail.innerText = user.email;
                     closeBtns.forEach(btn => btn.classList.remove('hidden'));
                 } else {
+                    closeBtns.forEach(btn => btn.classList.toggle('hidden', forceAuth));
                     if (loggedInState) loggedInState.classList.add('hidden');
                     if (tabs) tabs.classList.remove('hidden');
                     // Avoid switching tab if user has toggled to register
                     const isRegVisible = registerForm && !registerForm.classList.contains('hidden');
-                    if (isRegVisible) {
+                    if (!forceAuth && isRegVisible) {
                         this.switchAuthTab('register');
                     } else {
                         this.switchAuthTab('login');
                     }
-                    closeBtns.forEach(btn => btn.classList.remove('hidden'));
                 }
             });
         }
     },
 
     /**
-     * Legacy hook kept for older integrations. Startup now remains local-first.
+     * Legacy hook kept for older integrations.
      */
     async checkForceAuth() {
-        return null;
+        this.enforceStartupAuth();
+        return this.currentUser;
     },
 
     /**
@@ -1467,6 +1500,7 @@ const app = {
         try {
             await window.SupabaseService.signIn(email, password);
             document.getElementById('auth-modal').classList.add('hidden');
+            this.releaseAuthGate();
             this.forceRepaint();
             await this.updateAuthUI();
 
@@ -1530,6 +1564,7 @@ const app = {
             if (user) {
                 // Successfully registered and auto-logged in (since email confirmation is disabled)
                 document.getElementById('auth-modal').classList.add('hidden');
+                this.releaseAuthGate();
                 this.forceRepaint();
                 await this.updateAuthUI();
 
