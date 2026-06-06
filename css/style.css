@@ -2082,11 +2082,15 @@ body {
 /* Note indicator inside calendar day */
 .calendar-day-note-dot {
     position: absolute;
-    bottom: 3px;
-    width: 4px;
-    height: 4px;
+    left: 50%;
+    bottom: 2px;
+    width: 3px;
+    height: 3px;
     border-radius: 50%;
     background: currentColor;
+    transform: translateX(-50%);
+    pointer-events: none;
+    opacity: 0.82;
 }
 
 #view-insights .card {
@@ -2445,36 +2449,54 @@ body {
    -------------------------------------------------------------------------- */
 .auth-tabs {
     display: flex;
-    background: rgba(120, 120, 128, 0.12);
-    padding: 2px;
-    border-radius: 9px;
+    gap: 4px;
+    background: rgba(120, 120, 128, 0.13);
+    padding: 4px;
+    border-radius: 15px;
     margin-bottom: 22px;
-    border: none;
+    border: 1px solid rgba(120, 120, 128, 0.16);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.18), inset 0 -1px 2px rgba(29, 29, 31, 0.04);
 }
 [data-theme="dark"] .auth-tabs {
     background: rgba(120, 120, 128, 0.24);
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.06), inset 0 -1px 2px rgba(0, 0, 0, 0.22);
 }
 .auth-tab {
     flex: 1;
     border: none;
-    background: none;
-    padding: 6px 12px;
+    background: transparent;
+    padding: 9px 12px;
+    min-height: 40px;
     font-size: 0.82rem;
     font-weight: 600;
     color: var(--text-muted);
-    border-radius: 7px;
+    border-radius: 12px;
     cursor: pointer;
-    transition: all 0.25s var(--ease-smooth);
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: background 0.25s var(--ease-smooth), color 0.25s var(--ease-smooth), box-shadow 0.25s var(--ease-smooth), transform 0.2s var(--ease-smooth);
 }
 .auth-tab.active {
-    background: #FFFFFF;
-    color: #1D1D1F;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 1px rgba(0, 0, 0, 0.04);
+    background: rgba(85, 122, 96, 0.13);
+    color: var(--accent-color);
+    box-shadow: inset 0 0 0 1px rgba(85, 122, 96, 0.18);
 }
 [data-theme="dark"] .auth-tab.active {
-    background: rgba(255, 255, 255, 0.12);
-    color: #FFFFFF;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    background: rgba(158, 192, 167, 0.16);
+    color: #DDEBE0;
+    box-shadow: inset 0 0 0 1px rgba(158, 192, 167, 0.2);
+}
+.auth-tab:focus-visible {
+    box-shadow: inset 0 0 0 2px rgba(85, 122, 96, 0.28);
+}
+.auth-tab.active:focus-visible {
+    box-shadow: inset 0 0 0 2px rgba(85, 122, 96, 0.28);
+}
+.auth-tab:active {
+    transform: scale(0.98);
+    background: rgba(85, 122, 96, 0.18);
 }
 .form-group {
     display: flex;
@@ -2489,32 +2511,92 @@ body {
 }
 .form-group input, .form-group textarea {
     width: 100%;
-    padding: 10px 14px;
-    border-radius: 12px;
-    border: 1px solid var(--card-border);
-    background: rgba(0, 0, 0, 0.015);
+    padding: 12px 14px;
+    min-height: 46px;
+    border-radius: 16px;
+    border: 1px solid rgba(120, 120, 128, 0.14);
+    background: rgba(120, 120, 128, 0.12);
     color: var(--text-primary);
     font-family: var(--font-main);
     font-size: 0.9rem;
     outline: none;
-    transition: all 0.3s;
+    -webkit-appearance: none;
+    appearance: none;
+    box-shadow: inset 0 1px 2px rgba(29, 29, 31, 0.035);
+    transition: background 0.28s var(--ease-smooth), border-color 0.28s var(--ease-smooth), box-shadow 0.28s var(--ease-smooth), transform 0.2s var(--ease-smooth);
 }
 [data-theme="dark"] .form-group input,
 [data-theme="dark"] .form-group textarea {
-    background: rgba(255, 255, 255, 0.015);
+    background: rgba(120, 120, 128, 0.2);
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.24);
 }
 .form-group input:focus, .form-group textarea:focus {
-    border-color: var(--accent-color);
-    background: var(--card-bg);
-    box-shadow: 0 0 0 3.5px var(--accent-glow);
+    border-color: rgba(85, 122, 96, 0.45);
+    background: rgba(120, 120, 128, 0.18);
+    box-shadow: inset 0 1px 2px rgba(29, 29, 31, 0.04);
 }
 
 .form-group input:hover, .form-group textarea:hover {
-    border-color: rgba(184, 168, 152, 0.4);
+    border-color: rgba(85, 122, 96, 0.28);
+    background: rgba(120, 120, 128, 0.15);
+}
+.form-group input:active, .form-group textarea:active {
+    background: rgba(120, 120, 128, 0.2);
 }
 [data-theme="dark"] .form-group input:hover,
 [data-theme="dark"] .form-group textarea:hover {
-    border-color: rgba(146, 151, 196, 0.4);
+    border-color: rgba(158, 192, 167, 0.3);
+    background: rgba(120, 120, 128, 0.24);
+}
+[data-theme="dark"] .form-group input:focus,
+[data-theme="dark"] .form-group textarea:focus {
+    border-color: rgba(158, 192, 167, 0.5);
+    background: rgba(120, 120, 128, 0.28);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.form-group.has-error input,
+.form-group.has-error textarea {
+    border-color: rgba(201, 92, 82, 0.72);
+    background: rgba(201, 92, 82, 0.08);
+    box-shadow: 0 0 0 4px rgba(201, 92, 82, 0.1);
+}
+[data-theme="dark"] .form-group.has-error input,
+[data-theme="dark"] .form-group.has-error textarea {
+    border-color: rgba(255, 126, 113, 0.62);
+    background: rgba(255, 96, 84, 0.08);
+    box-shadow: 0 0 0 4px rgba(255, 126, 113, 0.1);
+}
+.field-error {
+    min-height: 0;
+    max-height: 0;
+    overflow: hidden;
+    color: #B84A42;
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1.35;
+    opacity: 0;
+    transform: translateY(-2px);
+    transition: max-height 0.24s var(--ease-smooth), opacity 0.2s var(--ease-smooth), transform 0.2s var(--ease-smooth), margin-top 0.2s var(--ease-smooth);
+}
+.field-error.active {
+    max-height: 42px;
+    margin-top: 3px;
+    opacity: 1;
+    transform: translateY(0);
+}
+[data-theme="dark"] .field-error {
+    color: #FFB4AA;
+}
+.auth-form {
+    display: flex;
+    flex-direction: column;
+}
+.auth-form.hidden {
+    display: none;
+}
+.auth-submit-btn {
+    margin-top: 6px;
 }
 
 /* Custom premium scrollbars, macOS style */
@@ -2747,6 +2829,30 @@ body {
     
     [data-theme="dark"] .modal::before {
         background: rgba(255, 255, 255, 0.18);
+    }
+
+    #auth-modal .modal {
+        border-radius: 28px 28px 0 0;
+        max-height: 86vh;
+        padding: 18px 20px calc(26px + env(safe-area-inset-bottom)) 20px;
+    }
+
+    #auth-modal .auth-tabs {
+        margin-bottom: 18px;
+    }
+
+    #auth-modal .form-group {
+        margin-bottom: 16px;
+    }
+
+    #auth-modal .form-group input {
+        min-height: 54px;
+        font-size: 16px;
+    }
+
+    #auth-modal .auth-submit-btn {
+        min-height: 54px;
+        font-size: 1rem;
     }
 }
 
@@ -3319,9 +3425,9 @@ body {
     }
 
     .calendar-day-note-dot {
-        bottom: 5px;
-        width: 5px;
-        height: 5px;
+        bottom: 3px;
+        width: 4px;
+        height: 4px;
     }
 
     /* Climate distribution chart 1 column on smaller desktop */
@@ -4348,4 +4454,15 @@ body {
     height: 24px;
     animation: auth-spin 0.8s linear infinite;
     margin: 0 auto 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+    }
 }

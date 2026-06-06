@@ -9,6 +9,7 @@ const app = {
     // Auth Cache State
     currentUser: null,
     authChecked: false,
+    authGateActive: false,
 
     // Router State
     router: {
@@ -95,8 +96,9 @@ const app = {
         // Initialize Supabase Service
         if (window.SupabaseService) {
             window.SupabaseService.init();
-            await this.updateAuthUI();
-            await this.checkForceAuth();
+            await this.updateAuthUI().catch((error) => {
+                console.warn('云账户状态检查失败，已继续使用本地模式。', error);
+            });
         }
 
         // Bind Events
@@ -104,6 +106,9 @@ const app = {
 
         // Render Initial Dashboard
         this.renderDashboard();
+
+        // Require account login before use when cloud auth is configured.
+        this.enforceStartupAuth();
     },
 
     /**
@@ -1009,6 +1014,9 @@ const app = {
             btn.addEventListener('click', (e) => {
                 const modal = e.target.closest('.modal-overlay');
                 if (modal) {
+                    if (modal.id === 'auth-modal' && modal.dataset.forceAuth === 'true') {
+                        return;
+                    }
                     modal.classList.add('hidden');
                     this.forceRepaint();
                 }
@@ -1020,9 +1028,8 @@ const app = {
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
                     if (modal.id === 'auth-modal') {
-                        const closeBtn = modal.querySelector('.modal-close-btn');
-                        if (closeBtn && closeBtn.classList.contains('hidden')) {
-                            return; // Cannot close if close button is hidden (forced login on startup)
+                        if (modal.dataset.forceAuth === 'true') {
+                            return;
                         }
                     }
                     modal.classList.add('hidden');
@@ -1047,6 +1054,7 @@ const app = {
             cancelChangePwdBtn.addEventListener('click', () => {
                 if (changePwdForm) changePwdForm.classList.add('hidden');
                 if (toggleChangePwdBtn) toggleChangePwdBtn.classList.remove('hidden');
+                if (changePwdForm) this.clearFormErrors(changePwdForm);
                 // Reset inputs
                 document.getElementById('change-old-password').value = '';
                 document.getElementById('change-new-password').value = '';
@@ -1054,15 +1062,20 @@ const app = {
         }
 
         if (changePwdForm) {
+            changePwdForm.setAttribute('novalidate', 'novalidate');
+            this.bindSoftValidation(changePwdForm);
             changePwdForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const oldPassword = document.getElementById('change-old-password').value;
                 const newPassword = document.getElementById('change-new-password').value;
 
+                this.clearFormErrors(changePwdForm);
+                if (!oldPassword) {
+                    this.setFieldError(document.getElementById('change-old-password'), '请输入当前密码。');
+                    return;
+                }
                 if (newPassword.length < 6) {
-                    app.showModal('密码长度不足', '新密码长度不能少于6位，请重新输入更长的密码。', [
-                        { text: '好的', class: 'primary-btn', onClick: () => app.hideModal() }
-                    ]);
+                    this.setFieldError(document.getElementById('change-new-password'), '新密码至少需要 6 位。');
                     return;
                 }
 
@@ -1071,6 +1084,7 @@ const app = {
                     // Reset and collapse
                     document.getElementById('change-old-password').value = '';
                     document.getElementById('change-new-password').value = '';
+                    this.clearFormErrors(changePwdForm);
                     if (changePwdForm) changePwdForm.classList.add('hidden');
                     if (toggleChangePwdBtn) toggleChangePwdBtn.classList.remove('hidden');
 
@@ -1107,9 +1121,13 @@ const app = {
         const loginForm = document.getElementById('login-form');
         const registerForm = document.getElementById('register-form');
         if (loginForm) {
+            loginForm.setAttribute('novalidate', 'novalidate');
+            this.bindSoftValidation(loginForm);
             loginForm.addEventListener('submit', (e) => this.handleLogin(e));
         }
         if (registerForm) {
+            registerForm.setAttribute('novalidate', 'novalidate');
+            this.bindSoftValidation(registerForm);
             registerForm.addEventListener('submit', (e) => this.handleRegister(e));
         }
 
@@ -1131,7 +1149,11 @@ const app = {
      */
     async updateAuthUI() {
         const isConfigured = window.SupabaseService && window.SupabaseService.isConfigured();
-        const user = isConfigured ? await window.SupabaseService.getUser() : null;
+        let user = null;
+        if (isConfigured) {
+            const session = await window.SupabaseService.getSession();
+            user = session?.user || null;
+        }
         
         // Cache state locally to prevent modal flashing
         this.currentUser = user;
@@ -1147,6 +1169,7 @@ const app = {
         const settingsAuthBtn = document.getElementById('settings-auth-btn');
 
         if (user) {
+            this.releaseAuthGate();
             const shortEmail = user.email.split('@')[0];
             if (sidebarText) sidebarText.innerText = `已登录(${shortEmail})`;
             if (sidebarIcon) sidebarIcon.setAttribute('name', 'cloud-done-outline');
@@ -1192,7 +1215,28 @@ const app = {
         }
     },
 
-    openAuthModal() {
+    enforceStartupAuth() {
+        const isConfigured = window.SupabaseService && window.SupabaseService.isConfigured();
+        if (!isConfigured || this.currentUser) {
+            this.releaseAuthGate();
+            return;
+        }
+
+        this.authGateActive = true;
+        document.body.classList.add('auth-gate-active');
+        this.openAuthModal({ force: true });
+    },
+
+    releaseAuthGate() {
+        this.authGateActive = false;
+        document.body.classList.remove('auth-gate-active');
+        const modal = document.getElementById('auth-modal');
+        if (modal) {
+            modal.dataset.forceAuth = 'false';
+        }
+    },
+
+    openAuthModal(options = {}) {
         const isConfigured = window.SupabaseService && window.SupabaseService.isConfigured();
         if (!isConfigured) {
             this.showModal('数据库连接配置缺失', '本应用目前处于本地存储/离线模式。若要启用账号登录及云端同步服务，请先配置您的 Supabase 连接凭证。如果您是项目所有者，也可在 `js/config.js` 中直接写入凭证。', [
@@ -1207,6 +1251,8 @@ const app = {
 
         const modal = document.getElementById('auth-modal');
         if (modal) {
+            const forceAuth = Boolean(options.force);
+            modal.dataset.forceAuth = forceAuth ? 'true' : 'false';
             const loginForm = document.getElementById('login-form');
             const registerForm = document.getElementById('register-form');
             const loggedInState = document.getElementById('logged-in-state');
@@ -1224,20 +1270,22 @@ const app = {
             // Synchronously show state based on cached credentials to prevent flashing
             if (this.authChecked) {
                 if (authLoading) authLoading.classList.add('hidden');
+                if (loginForm) this.clearFormErrors(loginForm);
+                if (registerForm) this.clearFormErrors(registerForm);
                 if (this.currentUser) {
+                    closeBtns.forEach(btn => btn.classList.remove('hidden'));
                     if (loginForm) loginForm.classList.add('hidden');
                     if (registerForm) registerForm.classList.add('hidden');
                     if (tabs) tabs.classList.add('hidden');
                     if (loggedInState) loggedInState.classList.remove('hidden');
                     if (userEmail) userEmail.innerText = this.currentUser.email;
-                    closeBtns.forEach(btn => btn.classList.remove('hidden'));
                 } else {
+                    closeBtns.forEach(btn => btn.classList.toggle('hidden', forceAuth));
                     if (loginForm) loginForm.classList.remove('hidden');
                     if (registerForm) registerForm.classList.add('hidden');
                     if (tabs) tabs.classList.remove('hidden');
                     if (loggedInState) loggedInState.classList.add('hidden');
                     this.switchAuthTab('login');
-                    closeBtns.forEach(btn => btn.classList.add('hidden'));
                 }
             } else {
                 // If auth is not checked yet, show a clean loading state
@@ -1246,7 +1294,7 @@ const app = {
                 if (registerForm) registerForm.classList.add('hidden');
                 if (tabs) tabs.classList.add('hidden');
                 if (loggedInState) loggedInState.classList.add('hidden');
-                closeBtns.forEach(btn => btn.classList.add('hidden'));
+                closeBtns.forEach(btn => btn.classList.toggle('hidden', forceAuth));
             }
 
             modal.classList.remove('hidden');
@@ -1258,6 +1306,7 @@ const app = {
 
                 if (authLoading) authLoading.classList.add('hidden');
                 if (user) {
+                    this.releaseAuthGate();
                     if (loginForm) loginForm.classList.add('hidden');
                     if (registerForm) registerForm.classList.add('hidden');
                     if (tabs) tabs.classList.add('hidden');
@@ -1265,32 +1314,27 @@ const app = {
                     if (userEmail) userEmail.innerText = user.email;
                     closeBtns.forEach(btn => btn.classList.remove('hidden'));
                 } else {
+                    closeBtns.forEach(btn => btn.classList.toggle('hidden', forceAuth));
                     if (loggedInState) loggedInState.classList.add('hidden');
                     if (tabs) tabs.classList.remove('hidden');
                     // Avoid switching tab if user has toggled to register
                     const isRegVisible = registerForm && !registerForm.classList.contains('hidden');
-                    if (isRegVisible) {
+                    if (!forceAuth && isRegVisible) {
                         this.switchAuthTab('register');
                     } else {
                         this.switchAuthTab('login');
                     }
-                    closeBtns.forEach(btn => btn.classList.add('hidden'));
                 }
             });
         }
     },
 
     /**
-     * Force login/registration check on startup
+     * Legacy hook kept for older integrations.
      */
     async checkForceAuth() {
-        const isConfigured = window.SupabaseService && window.SupabaseService.isConfigured();
-        if (!isConfigured) return;
-
-        const user = await window.SupabaseService.getUser();
-        if (!user) {
-            this.openAuthModal();
-        }
+        this.enforceStartupAuth();
+        return this.currentUser;
     },
 
     /**
@@ -1316,6 +1360,8 @@ const app = {
         const registerForm = document.getElementById('register-form');
         const tabLogin = document.getElementById('tab-login');
         const tabRegister = document.getElementById('tab-register');
+        if (loginForm) this.clearFormErrors(loginForm);
+        if (registerForm) this.clearFormErrors(registerForm);
 
         if (tab === 'login') {
             if (loginForm) loginForm.classList.remove('hidden');
@@ -1328,6 +1374,89 @@ const app = {
             if (tabLogin) tabLogin.classList.remove('active');
             if (tabRegister) tabRegister.classList.add('active');
         }
+    },
+
+    bindSoftValidation(form) {
+        form.querySelectorAll('input, textarea').forEach(field => {
+            field.addEventListener('input', () => this.clearFieldError(field));
+            field.addEventListener('blur', () => {
+                if (field.value.trim()) {
+                    this.clearFieldError(field);
+                }
+            });
+        });
+    },
+
+    getFieldErrorElement(field) {
+        if (!field) return null;
+        const describedBy = field.getAttribute('aria-describedby');
+        if (describedBy) {
+            return document.getElementById(describedBy.split(/\s+/)[0]);
+        }
+        return document.getElementById(`${field.id}-error`);
+    },
+
+    setFieldError(field, message) {
+        if (!field) return;
+        const group = field.closest('.form-group');
+        const error = this.getFieldErrorElement(field);
+        if (group) group.classList.add('has-error');
+        field.setAttribute('aria-invalid', 'true');
+        if (error) {
+            error.textContent = message;
+            error.classList.add('active');
+        }
+        field.focus({ preventScroll: true });
+        field.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    },
+
+    clearFieldError(field) {
+        if (!field) return;
+        const group = field.closest('.form-group');
+        const error = this.getFieldErrorElement(field);
+        if (group) group.classList.remove('has-error');
+        field.removeAttribute('aria-invalid');
+        if (error) {
+            error.textContent = '';
+            error.classList.remove('active');
+        }
+    },
+
+    clearFormErrors(form) {
+        if (!form) return;
+        form.querySelectorAll('input, textarea').forEach(field => this.clearFieldError(field));
+    },
+
+    isValidEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    },
+
+    validateAuthForm(form, mode) {
+        if (!form) return false;
+        this.clearFormErrors(form);
+
+        const emailInput = form.querySelector('input[type="email"]');
+        const passwordInput = form.querySelector('input[type="password"]');
+        const email = emailInput ? emailInput.value.trim() : '';
+        const password = passwordInput ? passwordInput.value : '';
+
+        if (!email) {
+            this.setFieldError(emailInput, '请输入邮箱地址。');
+            return false;
+        }
+        if (!this.isValidEmail(email)) {
+            this.setFieldError(emailInput, '请输入有效的邮箱地址。');
+            return false;
+        }
+        if (!password) {
+            this.setFieldError(passwordInput, mode === 'register' ? '请设置登录密码。' : '请输入账户密码。');
+            return false;
+        }
+        if (password.length < 6) {
+            this.setFieldError(passwordInput, '密码至少需要 6 位。');
+            return false;
+        }
+        return true;
     },
 
     /**
@@ -1363,12 +1492,15 @@ const app = {
      */
     async handleLogin(e) {
         e.preventDefault();
+        if (!this.validateAuthForm(e.currentTarget, 'login')) return;
+
         const email = document.getElementById('login-email').value.trim();
         const password = document.getElementById('login-password').value;
 
         try {
             await window.SupabaseService.signIn(email, password);
             document.getElementById('auth-modal').classList.add('hidden');
+            this.releaseAuthGate();
             this.forceRepaint();
             await this.updateAuthUI();
 
@@ -1420,6 +1552,8 @@ const app = {
      */
     async handleRegister(e) {
         e.preventDefault();
+        if (!this.validateAuthForm(e.currentTarget, 'register')) return;
+
         const email = document.getElementById('reg-email').value.trim();
         const password = document.getElementById('reg-password').value;
 
@@ -1430,6 +1564,7 @@ const app = {
             if (user) {
                 // Successfully registered and auto-logged in (since email confirmation is disabled)
                 document.getElementById('auth-modal').classList.add('hidden');
+                this.releaseAuthGate();
                 this.forceRepaint();
                 await this.updateAuthUI();
 

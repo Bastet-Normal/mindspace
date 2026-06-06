@@ -5,11 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MindSpace - 心空</title>
     <meta name="description" content="MindSpace 是一款本地优先、零压力、非批判性的心理健康与正念呼吸引导助手。">
+    <meta name="theme-color" content="#F5F5F7">
+    <meta name="application-name" content="MindSpace">
+    <meta name="apple-mobile-web-app-title" content="MindSpace">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="manifest" href="manifest.webmanifest?v=20260606-release">
+    <link rel="icon" href="assets/icon.svg?v=20260606-release" type="image/svg+xml">
+    <link rel="icon" href="assets/icon-512.png?v=20260606-release" sizes="512x512" type="image/png">
+    <link rel="shortcut icon" href="favicon.ico?v=20260606-release">
+    <link rel="apple-touch-icon" href="assets/icon-192.png?v=20260606-release">
     <!-- Native system fonts will be utilized for unified typography and fast offline performance -->
     <!-- Ionicons for beautiful modern icons -->
     <script type="module" src="https://cdn.jsdelivr.net/npm/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
     <script nomodule src="https://cdn.jsdelivr.net/npm/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=20260606-release">
 </head>
 <body>
     <!-- App Container with responsive layouts -->
@@ -153,7 +163,7 @@
 
                         <!-- Widget 6: Daily Inspiration Quote -->
                         <div class="quote-card card widget-span-4">
-                            <ion-icon name="quote-outline" class="quote-icon-decor"></ion-icon>
+                            <ion-icon name="sparkles-outline" class="quote-icon-decor"></ion-icon>
                             <p id="quote-content">"慢慢来，最慢的步伐也是在向前走。"</p>
                             <span id="quote-author">— 暖心树洞</span>
                         </div>
@@ -853,27 +863,31 @@
                 </div>
                 
                 <!-- Login Form -->
-                <form id="login-form" class="auth-form hidden">
+                <form id="login-form" class="auth-form hidden" novalidate>
                     <div class="form-group">
                         <label for="login-email">电子邮箱</label>
-                        <input type="email" id="login-email" required placeholder="请输入您的邮箱">
+                        <input type="email" id="login-email" required autocomplete="email" inputmode="email" placeholder="请输入您的邮箱" aria-describedby="login-email-error">
+                        <div id="login-email-error" class="field-error" aria-live="polite"></div>
                     </div>
                     <div class="form-group">
                         <label for="login-password">账户密码</label>
-                        <input type="password" id="login-password" required placeholder="请输入密码 (最少6位)">
+                        <input type="password" id="login-password" required autocomplete="current-password" placeholder="请输入密码 (最少6位)" aria-describedby="login-password-error">
+                        <div id="login-password-error" class="field-error" aria-live="polite"></div>
                     </div>
                     <button type="submit" class="primary-btn auth-submit-btn">登录</button>
                 </form>
 
                 <!-- Register Form -->
-                <form id="register-form" class="auth-form hidden">
+                <form id="register-form" class="auth-form hidden" novalidate>
                     <div class="form-group">
                         <label for="reg-email">电子邮箱</label>
-                        <input type="email" id="reg-email" required placeholder="请输入您的邮箱">
+                        <input type="email" id="reg-email" required autocomplete="email" inputmode="email" placeholder="请输入您的邮箱" aria-describedby="reg-email-error">
+                        <div id="reg-email-error" class="field-error" aria-live="polite"></div>
                     </div>
                     <div class="form-group">
                         <label for="reg-password">设置密码</label>
-                        <input type="password" id="reg-password" required placeholder="请设置密码 (最少6位)">
+                        <input type="password" id="reg-password" required autocomplete="new-password" placeholder="请设置密码 (最少6位)" aria-describedby="reg-password-error">
+                        <div id="reg-password-error" class="field-error" aria-live="polite"></div>
                     </div>
                     <button type="submit" class="primary-btn auth-submit-btn">注册账号</button>
                 </form>
@@ -893,14 +907,16 @@
                         <button id="btn-toggle-change-pwd" type="button" class="change-pwd-toggle-btn">
                             <ion-icon name="key-outline"></ion-icon> 修改账户密码
                         </button>
-                        <form id="change-pwd-form" class="hidden change-pwd-form">
+                        <form id="change-pwd-form" class="hidden change-pwd-form" novalidate>
                             <div class="form-group">
                                 <label for="change-old-password" class="change-pwd-label">原密码</label>
-                                <input type="password" id="change-old-password" required placeholder="请输入当前旧密码">
+                                <input type="password" id="change-old-password" required autocomplete="current-password" placeholder="请输入当前旧密码" aria-describedby="change-old-password-error">
+                                <div id="change-old-password-error" class="field-error" aria-live="polite"></div>
                             </div>
                             <div class="form-group">
                                 <label for="change-new-password" class="change-pwd-label">新密码 (最少6位)</label>
-                                <input type="password" id="change-new-password" required placeholder="请输入新密码">
+                                <input type="password" id="change-new-password" required autocomplete="new-password" placeholder="请输入新密码" aria-describedby="change-new-password-error">
+                                <div id="change-new-password-error" class="field-error" aria-live="polite"></div>
                             </div>
                             <div class="change-pwd-actions">
                                 <button type="button" id="btn-cancel-change-pwd" class="secondary-btn change-pwd-btn">取消</button>
@@ -924,5 +940,6 @@
     <script src="js/breathing.js"></script>
     <script src="js/focus.js"></script>
     <script src="js/app.js"></script>
+    <script src="js/pwa.js"></script>
 </body>
 </html>
