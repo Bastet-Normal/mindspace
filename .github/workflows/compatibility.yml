@@ -91,5 +91,5 @@ jobs:
           files: |
             release-artifacts/MindSpace-*-Windows-Setup-*.exe
             release-artifacts/MindSpace-*-Windows-Portable-*.exe
-            release-artifacts/MindSpace-*-Linux-x64.AppImage
-            release-artifacts/MindSpace-*-Linux-x64.deb
+            release-artifacts/MindSpace-*-Linux-x86_64.AppImage
+            release-artifacts/MindSpace-*-Linux-amd64.deb
