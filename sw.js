@@ -1,14 +1,16 @@
-const CACHE_NAME = "mindspace-shell-v20260605-icons";
+const CACHE_NAME = "mindspace-shell-v20260606-release";
 
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./manifest.webmanifest",
-  "./assets/icon.svg",
-  "./assets/icon-192.png",
-  "./assets/icon-512.png",
+  "./manifest.webmanifest?v=20260606-release",
+  "./favicon.ico?v=20260606-release",
+  "./assets/icon.svg?v=20260606-release",
+  "./assets/icon-192.png?v=20260606-release",
+  "./assets/icon-512.png?v=20260606-release",
+  "./assets/icon-1024.png?v=20260606-release",
   "./assets/icon.png",
-  "./css/style.css",
+  "./css/style.css?v=20260606-release",
   "./js/config.js",
   "./js/supabase-service.js",
   "./js/quotes.js",

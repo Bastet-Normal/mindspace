@@ -31,6 +31,7 @@
     "icon": "assets/icon.png",
     "files": [
       "index.html",
+      "favicon.ico",
       "manifest.webmanifest",
       "sw.js",
       "assets/**/*",
