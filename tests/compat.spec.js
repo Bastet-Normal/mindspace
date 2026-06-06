@@ -31,9 +31,9 @@ test.describe("MindSpace web compatibility", () => {
     await expect(page.locator("#app-container")).toBeVisible();
     await expect(page.locator("#greeting-text")).toBeVisible();
     await expect(page.locator("#quote-content")).toBeVisible();
-    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "manifest.webmanifest?v=20260606-release");
-    await expect(page.locator('link[rel="shortcut icon"]')).toHaveAttribute("href", "favicon.ico?v=20260606-release");
-    await expect(page.locator('link[rel="icon"][sizes="512x512"]')).toHaveAttribute("href", "assets/icon-512.png?v=20260606-release");
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "manifest.webmanifest?v=20260606-android");
+    await expect(page.locator('link[rel="shortcut icon"]')).toHaveAttribute("href", "favicon.ico?v=20260606-android");
+    await expect(page.locator('link[rel="icon"][sizes="512x512"]')).toHaveAttribute("href", "assets/icon-512.png?v=20260606-android");
 
     const manifest = await page.evaluate(async () => {
       const manifestHref = document.querySelector('link[rel="manifest"]').getAttribute("href");
@@ -41,10 +41,10 @@ test.describe("MindSpace web compatibility", () => {
       return response.json();
     });
     expect(manifest.icons.map((icon) => icon.src)).toEqual(expect.arrayContaining([
-      "assets/icon-192.png?v=20260606-release",
-      "assets/icon-512.png?v=20260606-release",
-      "assets/icon-1024.png?v=20260606-release",
-      "assets/icon.svg?v=20260606-release"
+      "assets/icon-192.png?v=20260606-android",
+      "assets/icon-512.png?v=20260606-android",
+      "assets/icon-1024.png?v=20260606-android",
+      "assets/icon.svg?v=20260606-android"
     ]));
 
     await expect(page.locator("#auth-modal")).toBeVisible();
@@ -77,38 +77,34 @@ test.describe("MindSpace web compatibility", () => {
     await page.locator(navigationSelector(page, "insights")).click();
     await expect(page.locator("#view-insights")).toHaveClass(/active/);
     await expect(page.locator("#weather-calendar-grid")).toBeVisible();
+    await expect(page.getByText("(点击圆点或悬浮查看随笔)")).toHaveCount(0);
 
     const weatherDay = page.locator("#weather-calendar-grid .calendar-day.has-note").last();
     await expect(weatherDay).toBeVisible();
-    const dotGeometry = await weatherDay.evaluate((day) => {
-      const dot = day.querySelector(".calendar-day-note-dot");
-      const dayRect = day.getBoundingClientRect();
-      const dotRect = dot?.getBoundingClientRect();
-
-      return {
-        hasDot: Boolean(dot),
-        width: dotRect?.width || 0,
-        height: dotRect?.height || 0,
-        leftInside: dotRect ? dotRect.left >= dayRect.left + 1 : false,
-        rightInside: dotRect ? dotRect.right <= dayRect.right - 1 : false,
-        bottomInside: dotRect ? dotRect.bottom <= dayRect.bottom - 1 : false,
-        isLowerHalf: dotRect ? dotRect.top > dayRect.top + dayRect.height / 2 : false,
-        centerOffset: dotRect ? Math.abs((dotRect.left + dotRect.right - dayRect.left - dayRect.right) / 2) : 999
-      };
-    });
-
-    expect(dotGeometry.hasDot).toBe(true);
-    expect(dotGeometry.width).toBeLessThanOrEqual(5);
-    expect(dotGeometry.height).toBeLessThanOrEqual(5);
-    expect(dotGeometry.leftInside).toBe(true);
-    expect(dotGeometry.rightInside).toBe(true);
-    expect(dotGeometry.bottomInside).toBe(true);
-    expect(dotGeometry.isLowerHalf).toBe(true);
-    expect(dotGeometry.centerOffset).toBeLessThanOrEqual(1);
+    await expect(page.locator("#weather-calendar-grid .calendar-day-note-dot")).toHaveCount(0);
 
     await page.locator(navigationSelector(page, "breathing")).click();
     await expect(page.locator("#view-breathing")).toHaveClass(/active/);
     await expect(page.locator("#start-breath-btn")).toBeVisible();
+    const breathingSpacing = await page.evaluate(() => {
+      const layout = document.querySelector(".breathing-split-layout");
+      const controls = document.querySelector(".breathing-panel-controls");
+      const visual = document.querySelector(".breathing-panel-visual");
+      const layoutStyle = layout ? getComputedStyle(layout) : null;
+      const controlsRect = controls?.getBoundingClientRect();
+      const visualRect = visual?.getBoundingClientRect();
+
+      return {
+        viewportWidth: window.innerWidth,
+        display: layoutStyle?.display || "",
+        cssGap: parseFloat(layoutStyle?.rowGap || layoutStyle?.gap || "0"),
+        verticalGap: controlsRect && visualRect ? visualRect.top - controlsRect.bottom : 0
+      };
+    });
+    if (breathingSpacing.viewportWidth < 768) {
+      expect(breathingSpacing.display).toBe("flex");
+      expect(Math.max(breathingSpacing.cssGap, breathingSpacing.verticalGap)).toBeGreaterThanOrEqual(20);
+    }
 
     await page.locator(navigationSelector(page, "focus")).click();
     await expect(page.locator("#view-focus")).toHaveClass(/active/);

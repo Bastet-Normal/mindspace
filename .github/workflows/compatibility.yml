@@ -66,12 +66,60 @@ jobs:
           name: mindspace-${{ matrix.platform }}
           path: release/*
 
+  android-package:
+    name: Android package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync Android project
+        run: npm run mobile:sync
+
+      - name: Build Android APK and bundle
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug bundleRelease
+
+      - name: Collect Android artifacts
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          mkdir -p release
+          cp android/app/build/outputs/apk/debug/app-debug.apk "release/MindSpace-${VERSION}-Android-debug.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "release/MindSpace-${VERSION}-Android-release-unsigned.aab"
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mindspace-android
+          path: release/MindSpace-*-Android-*
+
   publish-release:
     name: Publish GitHub release
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - web-compatibility
       - desktop-packages
+      - android-package
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -93,3 +141,5 @@ jobs:
             release-artifacts/MindSpace-*-Windows-Portable-*.exe
             release-artifacts/MindSpace-*-Linux-x86_64.AppImage
             release-artifacts/MindSpace-*-Linux-amd64.deb
+            release-artifacts/MindSpace-*-Android-debug.apk
+            release-artifacts/MindSpace-*-Android-release-unsigned.aab

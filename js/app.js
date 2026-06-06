@@ -718,10 +718,6 @@ const app = {
                         dayEl.classList.add('has-note');
                         titleText += ' (已记录随笔，点击阅读)';
 
-                        const dot = document.createElement('div');
-                        dot.className = 'calendar-day-note-dot';
-                        dayEl.appendChild(dot);
-
                         dayEl.addEventListener('click', () => {
                             app.openJournalDetail(log);
                         });

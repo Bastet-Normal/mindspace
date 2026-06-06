@@ -1,6 +1,6 @@
 {
   "name": "mindspace",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MindSpace - 本地优先的心理健康与正念呼吸引导助手。",
   "author": {
     "name": "wangjiehu",
@@ -18,7 +18,12 @@
     "desktop:build:win": "electron-builder --win nsis portable --x64 --arm64 --publish never",
     "desktop:build:linux:x64": "electron-builder --linux AppImage deb --x64 --publish never",
     "desktop:build:linux": "electron-builder --linux AppImage deb --x64 --publish never",
-    "desktop:build:all": "npm run desktop:build:win && npm run desktop:build:linux"
+    "desktop:build:all": "npm run desktop:build:win && npm run desktop:build:linux",
+    "mobile:prepare": "node scripts/prepare-mobile-web.cjs",
+    "mobile:sync": "npm run mobile:prepare && cap sync android && npm run mobile:android:icons",
+    "mobile:android:icons": "node scripts/apply-android-icons.cjs",
+    "mobile:build:android:debug": "npm run mobile:sync && node scripts/run-gradle.cjs assembleDebug",
+    "mobile:build:android:release": "npm run mobile:sync && node scripts/run-gradle.cjs assembleRelease bundleRelease"
   },
   "build": {
     "appId": "com.wangjiehu.mindspace",
@@ -90,9 +95,15 @@
     }
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.0",
     "@playwright/test": "^1.53.0",
     "electron": "^42.3.3",
     "electron-builder": "^26.0.12",
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "sharp": "^0.34.5"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/core": "^8.4.0"
   }
 }
