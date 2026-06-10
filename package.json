@@ -1,0 +1,109 @@
+{
+  "name": "mindspace",
+  "version": "1.0.0",
+  "description": "MindSpace - 本地优先的心理健康与正念呼吸引导助手。",
+  "author": {
+    "name": "wangjiehu",
+    "email": "wangjiehu@users.noreply.github.com"
+  },
+  "private": true,
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "serve": "http-server . -a 127.0.0.1 -p 4289 -c-1",
+    "test:compat": "playwright test",
+    "desktop:dev": "electron .",
+    "desktop:pack": "electron-builder --dir",
+    "desktop:build:win:arm64": "electron-builder --win nsis portable --arm64 --publish never",
+    "desktop:build:win:x64": "electron-builder --win nsis portable --x64 --publish never",
+    "desktop:build:win": "electron-builder --win nsis portable --x64 --arm64 --publish never",
+    "desktop:build:linux:x64": "electron-builder --linux AppImage deb --x64 --publish never",
+    "desktop:build:linux": "electron-builder --linux AppImage deb --x64 --publish never",
+    "desktop:build:all": "npm run desktop:build:win && npm run desktop:build:linux",
+    "mobile:prepare": "node scripts/prepare-mobile-web.cjs",
+    "mobile:sync": "npm run mobile:prepare && cap sync android && npm run mobile:android:icons",
+    "mobile:android:icons": "node scripts/apply-android-icons.cjs",
+    "mobile:build:android:debug": "npm run mobile:sync && node scripts/run-gradle.cjs assembleDebug",
+    "mobile:build:android:release": "npm run mobile:sync && node scripts/run-gradle.cjs assembleRelease bundleRelease"
+  },
+  "build": {
+    "appId": "com.wangjiehu.mindspace",
+    "productName": "MindSpace",
+    "asar": true,
+    "compression": "maximum",
+    "directories": {
+      "output": "release"
+    },
+    "icon": "assets/icon.png",
+    "files": [
+      "index.html",
+      "favicon.ico",
+      "manifest.webmanifest",
+      "sw.js",
+      "assets/**/*",
+      "css/**/*",
+      "js/**/*",
+      "desktop/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "artifactName": "${productName}-${version}-Windows-Setup-${arch}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-Windows-Portable-${arch}.${ext}"
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "maintainer": "wangjiehu <wangjiehu@users.noreply.github.com>",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Utility",
+      "artifactName": "${productName}-${version}-Linux-${arch}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.4.0",
+    "@playwright/test": "^1.53.0",
+    "electron": "^42.3.3",
+    "electron-builder": "^26.0.12",
+    "http-server": "^14.1.1",
+    "sharp": "^0.34.5"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/core": "^8.4.0"
+  }
+}
