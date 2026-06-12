@@ -356,7 +356,7 @@ body {
     animation: fade-in 0.5s var(--ease-smooth) forwards;
     flex-direction: column;
     gap: 20px;
-    max-width: 1200px;
+    max-width: 1400px;
     width: 100%;
     margin: 0 auto;
 }
@@ -1765,8 +1765,8 @@ body {
 }
 
 @media (max-width: 767px) {
-    .journal-card {
-        padding-right: 54px;
+    .journal-card.card {
+        padding: 16px 54px 16px 16px;
     }
 
     .journal-card-header {
@@ -3375,7 +3375,7 @@ body {
 
     /* Insights Bento Grid - Desktop (12-column optimized layout) */
     #view-insights {
-        max-width: 1600px;
+        max-width: 1400px;
         gap: 14px;
         transition: all 0.3s ease;
     }

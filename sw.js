@@ -10,14 +10,14 @@ const APP_SHELL = [
   "./assets/icon-512.png?v=20260610-initial",
   "./assets/icon-1024.png?v=20260610-initial",
   "./assets/icon.png",
-  "./css/style.css?v=20260610-initial",
+  "./css/style.css?v=20260612-responsive-v1",
   "./js/config.js",
   "./js/supabase-service.js",
   "./js/quotes.js",
   "./js/storage.js",
   "./js/breathing.js",
-  "./js/focus.js",
-  "./js/app.js",
+  "./js/focus.js?v=20260612-hollow-buttons-v3",
+  "./js/app.js?v=20260612-hollow-buttons-v3",
   "./js/pwa.js"
 ];
 
