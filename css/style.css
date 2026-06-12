@@ -4637,3 +4637,298 @@ body {
         transition-duration: 0.01ms !important;
     }
 }
+
+/* --------------------------------------------------------------------------
+   11. Responsive Stability Overrides
+   -------------------------------------------------------------------------- */
+.app-view,
+.card,
+.dashboard-grid,
+.weather-split-layout,
+.breathing-split-layout,
+.focus-split-layout,
+.settings-split-layout,
+.insights-grid,
+.calendar-card-layout,
+.mindful-stats-grid,
+.weather-chart-list,
+.tags-analysis-list,
+.soundscape-grid {
+    min-width: 0;
+}
+
+@media (max-width: 767px) {
+    #app-content {
+        padding: 22px 16px calc(86px + env(safe-area-inset-bottom)) 16px;
+        gap: 18px;
+    }
+
+    .app-view {
+        gap: 18px;
+    }
+
+    .section-title h2 {
+        font-size: 1.35rem;
+        line-height: 1.2;
+    }
+
+    .section-title p {
+        font-size: 0.86rem;
+        line-height: 1.5;
+    }
+
+    .card {
+        border-radius: 16px;
+        padding: 16px;
+    }
+
+    #bottom-nav {
+        height: calc(68px + env(safe-area-inset-bottom));
+        align-items: flex-start;
+        padding: 7px 4px calc(6px + env(safe-area-inset-bottom));
+    }
+
+    .nav-item {
+        flex: 1 1 0;
+        width: auto;
+        min-width: 0;
+        font-size: 0.62rem;
+        gap: 2px;
+    }
+
+    .nav-item ion-icon {
+        font-size: 1.22rem;
+    }
+
+    .weather-selector-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .weather-box {
+        min-height: 86px;
+        padding: 12px 8px;
+    }
+
+    .climate-gauge-card .gauge-content {
+        align-items: flex-start;
+        gap: 14px;
+    }
+
+    .calendar-card-layout {
+        gap: 14px;
+    }
+
+    .calendar-legend {
+        justify-content: flex-start;
+    }
+
+    .mindful-stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .mindful-stat-item {
+        padding: 10px;
+        gap: 8px;
+    }
+
+    .stat-icon-wrapper {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+    }
+
+    .soundscape-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .sound-card {
+        padding: 14px 12px;
+    }
+
+    .sound-slider-wrapper {
+        min-width: 0;
+    }
+}
+
+@media (max-width: 380px) {
+    #main-header {
+        padding: 0 16px;
+    }
+
+    #app-content {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    .header-logo h1 {
+        font-size: 1.08rem;
+    }
+
+    .logo-sub {
+        display: none;
+    }
+
+    .nav-item {
+        font-size: 0.58rem;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    #app-container {
+        flex-direction: column;
+    }
+
+    #desktop-sidebar {
+        display: none !important;
+    }
+
+    #main-header {
+        display: flex !important;
+    }
+
+    #bottom-nav {
+        display: flex !important;
+        height: calc(68px + env(safe-area-inset-bottom));
+        padding: 7px 16px calc(6px + env(safe-area-inset-bottom));
+    }
+
+    #app-content {
+        padding: 28px 32px calc(92px + env(safe-area-inset-bottom)) 32px;
+        scrollbar-width: none;
+    }
+
+    #app-content::-webkit-scrollbar {
+        display: none;
+    }
+
+    .app-view {
+        max-width: 760px;
+    }
+
+    .weather-split-layout,
+    .breathing-split-layout,
+    .focus-split-layout,
+    .settings-split-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .weather-selector-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .insights-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-areas: none;
+    }
+
+    .insights-grid > .climate-gauge-card,
+    .insights-grid > .mindful-stats-card {
+        grid-column: span 1;
+    }
+
+    .insights-grid > .calendar-card,
+    .insights-grid > .chart-card,
+    .insights-grid > .tags-analysis-card {
+        grid-column: 1 / -1;
+    }
+
+    .calendar-card-layout {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .calendar-card-left {
+        border-right: 0;
+        border-bottom: 1px dashed var(--card-border);
+        padding-right: 0;
+        padding-bottom: 16px;
+    }
+
+    .calendar-card-right {
+        gap: 14px;
+    }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+    #desktop-sidebar {
+        width: 220px;
+        padding: 28px 18px;
+    }
+
+    .sidebar-logo h2 {
+        font-size: 1.08rem;
+    }
+
+    .sidebar-item {
+        gap: 10px;
+        padding: 10px 12px;
+        font-size: 0.86rem;
+    }
+
+    #app-content {
+        padding: 28px 28px 24px;
+    }
+
+    .app-view {
+        max-width: 100%;
+    }
+
+    .dashboard-grid {
+        gap: 16px;
+    }
+
+    .weather-selector-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .insights-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-areas:
+            "gauge stats"
+            "calendar calendar"
+            "chart tags";
+        gap: 16px;
+    }
+
+    .calendar-card-layout {
+        grid-template-columns: minmax(240px, 0.95fr) minmax(0, 1.05fr);
+        gap: 20px;
+    }
+
+    .calendar-card-left {
+        padding-right: 20px;
+    }
+
+    .calendar-card-right .calendar-legend {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px 12px;
+    }
+
+    .weather-calendar-grid {
+        max-width: 300px;
+    }
+}
+
+@media (min-width: 1024px) and (max-width: 1439px) {
+    .mindful-stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(123px, 1fr));
+    }
+
+    .mindful-stat-item {
+        padding: 12px;
+    }
+
+    .mindful-stat-item .stat-icon-wrapper {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+@media (min-width: 1280px) {
+    .mindful-stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(123px, 1fr));
+    }
+}
