@@ -1,0 +1,13 @@
+# Editor & System Files
+.DS_Store
+Thumbs.db
+*.log
+.antigravitycli/
+.gemini/
+.vscode/
+.idea/
+node_modules/
+release/
+dist/
+playwright-report/
+test-results/
