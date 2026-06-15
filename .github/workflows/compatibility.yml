@@ -1,4 +1,4 @@
-name: Compatibility and Packages
+name: Compatibility and Release
 
 on:
   push:
@@ -7,6 +7,11 @@ on:
     tags:
       - "v*"
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: mindspace-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 jobs:
   web-compatibility:
@@ -25,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify release metadata
+        run: npm run verify:release
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
@@ -33,6 +41,7 @@ jobs:
 
   desktop-packages:
     name: Desktop package (${{ matrix.platform }})
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false
       matrix:
@@ -64,10 +73,17 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mindspace-${{ matrix.platform }}
-          path: release/*
+          path: |
+            release/MindSpace-*-Windows-Setup-*.exe
+            release/MindSpace-*-Windows-Portable-*.exe
+            release/MindSpace-*-Linux-x86_64.AppImage
+            release/MindSpace-*-Linux-amd64.deb
+          if-no-files-found: error
+          retention-days: 7
 
   android-package:
     name: Android package
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -112,6 +128,7 @@ jobs:
         with:
           name: mindspace-android
           path: release/MindSpace-*-Android-*
+          retention-days: 7
 
   publish-release:
     name: Publish GitHub release
@@ -125,12 +142,24 @@ jobs:
       contents: write
       actions: read
     steps:
-      - name: Download desktop artifacts
+      - name: Download package artifacts
         uses: actions/download-artifact@v4
         with:
           path: release-artifacts
           pattern: mindspace-*
           merge-multiple: true
+
+      - name: Generate SHA-256 checksums
+        run: |
+          cd release-artifacts
+          sha256sum \
+            MindSpace-*-Windows-Setup-*.exe \
+            MindSpace-*-Windows-Portable-*.exe \
+            MindSpace-*-Linux-x86_64.AppImage \
+            MindSpace-*-Linux-amd64.deb \
+            MindSpace-*-Android-debug.apk \
+            MindSpace-*-Android-release-unsigned.aab \
+            | sort > SHA256SUMS.txt
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -143,3 +172,4 @@ jobs:
             release-artifacts/MindSpace-*-Linux-amd64.deb
             release-artifacts/MindSpace-*-Android-debug.apk
             release-artifacts/MindSpace-*-Android-release-unsigned.aab
+            release-artifacts/SHA256SUMS.txt

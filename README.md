@@ -4,6 +4,8 @@
 
 MindSpace 是一款本地优先、零压力、非批判性的心灵疗愈与正念呼吸助手。在数字喧嚣的当下，我们采用极简的毛玻璃美学设计，辅以本地离线高保真白噪音和正念呼吸引导，在本地存储层为您构建起一座纯净、安宁、完全属于您个人的**心灵避风港**。
 
+当前正式版本：**v1.1.0**
+
 <p align="left">
   <a href="https://wangjiehu.github.io/mindspace/">🌐 在线网页体验 (PWA)</a> &nbsp;·&nbsp;
   <a href="https://github.com/wangjiehu/mindspace/releases">📦 桌面端与安卓 APK 下载</a>
@@ -49,20 +51,25 @@ create index idx_mood_logs_user_timestamp on public.mood_logs (user_id, timestam
 ## 🛠️ 本地开发与构建 (Development & Build)
 
 ```bash
-# 1. 运行本地开发调试 (浏览器打开 http://127.0.0.1:4289)
-npm install
+# 1. 安装锁定依赖并校验发布元数据
+npm ci
+npm run verify:release
+
+# 2. 运行本地开发调试 (浏览器打开 http://127.0.0.1:4289)
 npm run serve
 
-# 2. 运行兼容性与端到端测试 (Playwright)
+# 3. 运行兼容性与端到端测试 (Playwright)
 npm run test:compat
 
-# 3. 编译并同步至 Android (需配置 JAVA_HOME 环境变量)
+# 4. 编译并同步至 Android (需配置 JAVA_HOME 环境变量)
 npm run mobile:sync
 npm run mobile:build:android:debug
 
-# 4. 本地打包 Windows 桌面端安装包 (NSIS Setup & Portable)
+# 5. 本地打包 Windows 桌面端安装包 (NSIS Setup & Portable)
 npm run desktop:build:win:x64
 ```
+
+正式版本标签会自动构建 Windows x64/ARM64、Linux x64 与 Android 附件，并在 GitHub Release 中附带 `SHA256SUMS.txt`。
 
 ---
 
