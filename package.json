@@ -1,6 +1,6 @@
 {
   "name": "mindspace",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "MindSpace - 本地优先的心理健康与正念呼吸引导助手。",
   "author": {
     "name": "wangjiehu",
@@ -10,6 +10,7 @@
   "main": "desktop/main.cjs",
   "scripts": {
     "serve": "http-server . -a 127.0.0.1 -p 4289 -c-1",
+    "verify:release": "node scripts/verify-release.cjs",
     "test:compat": "playwright test",
     "desktop:dev": "electron .",
     "desktop:pack": "electron-builder --dir",
@@ -33,7 +34,7 @@
     "directories": {
       "output": "release"
     },
-    "icon": "assets/icon.png",
+    "icon": "assets/icon-1024.png",
     "files": [
       "index.html",
       "favicon.ico",
@@ -46,7 +47,7 @@
       "package.json"
     ],
     "win": {
-      "icon": "assets/icon.ico",
+      "icon": "favicon.ico",
       "target": [
         {
           "target": "nsis",
@@ -74,7 +75,7 @@
       "artifactName": "${productName}-${version}-Windows-Portable-${arch}.${ext}"
     },
     "linux": {
-      "icon": "assets/icon.png",
+      "icon": "assets/icon-1024.png",
       "maintainer": "wangjiehu <wangjiehu@users.noreply.github.com>",
       "target": [
         {
@@ -97,8 +98,8 @@
   "devDependencies": {
     "@capacitor/cli": "^8.4.0",
     "@playwright/test": "^1.53.0",
-    "electron": "^42.3.3",
-    "electron-builder": "^26.0.12",
+    "electron": "^42.4.0",
+    "electron-builder": "^26.15.3",
     "http-server": "^14.1.1",
     "sharp": "^0.34.5"
   },

@@ -10,6 +10,25 @@ test.describe("MindSpace web compatibility", () => {
   test("loads, navigates, records a mood, and exposes install metadata", async ({ page }, testInfo) => {
     const errors = [];
 
+    await page.route("https://api.github.com/repos/wangjiehu/mindspace/releases/latest", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          tag_name: "v1.2.0",
+          html_url: "https://github.com/wangjiehu/mindspace/releases/tag/v1.2.0",
+          body: "<b>兼容性测试更新</b>",
+          assets: [
+            {
+              name: "MindSpace-1.2.0-Windows-Portable-x64.exe",
+              size: 1048576,
+              browser_download_url: "https://github.com/wangjiehu/mindspace/releases/download/v1.2.0/MindSpace-1.2.0-Windows-Portable-x64.exe"
+            }
+          ]
+        })
+      });
+    });
+
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error" && !message.text().includes("Failed to load resource")) {
@@ -31,9 +50,9 @@ test.describe("MindSpace web compatibility", () => {
     await expect(page.locator("#app-container")).toBeVisible();
     await expect(page.locator("#greeting-text")).toBeVisible();
     await expect(page.locator("#quote-content")).toBeVisible();
-    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "manifest.webmanifest?v=20260610-initial");
-    await expect(page.locator('link[rel="shortcut icon"]')).toHaveAttribute("href", "favicon.ico?v=20260610-initial");
-    await expect(page.locator('link[rel="icon"][sizes="512x512"]')).toHaveAttribute("href", "assets/icon-512.png?v=20260610-initial");
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "manifest.webmanifest?v=1.1.0");
+    await expect(page.locator('link[rel="shortcut icon"]')).toHaveAttribute("href", "favicon.ico?v=1.1.0");
+    await expect(page.locator('link[rel="icon"][sizes="512x512"]')).toHaveAttribute("href", "assets/icon-512.png?v=1.1.0");
 
     const manifest = await page.evaluate(async () => {
       const manifestHref = document.querySelector('link[rel="manifest"]').getAttribute("href");
@@ -41,11 +60,11 @@ test.describe("MindSpace web compatibility", () => {
       return response.json();
     });
     expect(manifest.icons.map((icon) => icon.src)).toEqual(expect.arrayContaining([
-      "assets/icon-192.png?v=20260610-initial",
-      "assets/icon-512.png?v=20260610-initial",
-      "assets/icon-1024.png?v=20260610-initial",
-      "assets/icon.svg?v=20260610-initial"
+      "assets/icon-192.png?v=1.1.0",
+      "assets/icon-512.png?v=1.1.0",
+      "assets/icon-1024.png?v=1.1.0"
     ]));
+    expect(manifest.icons).toHaveLength(3);
 
     const styleHealth = await page.evaluate(async () => {
       const cssHref = document.querySelector('link[href^="css/style.css"]').getAttribute("href");
@@ -64,6 +83,15 @@ test.describe("MindSpace web compatibility", () => {
     expect(styleHealth.hasJournalBodyLayout).toBe(true);
     expect(styleHealth.hasJournalClamp).toBe(true);
 
+    await page.evaluate(() => {
+      const modal = document.querySelector("#auth-modal");
+      if (modal?.classList.contains("hidden") && window.SupabaseService) {
+        const originalIsConfigured = window.SupabaseService.isConfigured;
+        window.SupabaseService.isConfigured = () => true;
+        app.openAuthModal({ force: true });
+        window.SupabaseService.isConfigured = originalIsConfigured;
+      }
+    });
     await expect(page.locator("#auth-modal")).toBeVisible();
     await expect(page.locator("#auth-modal")).toHaveAttribute("data-force-auth", "true");
     await expect(page.locator("#auth-modal .modal-close-btn")).toHaveClass(/hidden/);
@@ -205,6 +233,13 @@ test.describe("MindSpace web compatibility", () => {
     await page.locator(navigationSelector(page, "settings")).click();
     await expect(page.locator("#view-settings")).toHaveClass(/active/);
     await expect(page.getByText("导出并下载我的心声随笔")).toBeVisible();
+    await expect(page.locator("#current-app-version")).toHaveText("v1.1.0");
+    await page.locator("#btn-check-update").click();
+    await expect(page.locator("#modal-title")).toHaveText("发现新版本 🎉");
+    await expect(page.locator("#modal-body")).toContainText("<b>兼容性测试更新</b>");
+    await expect(page.locator("#modal-body a")).toHaveText(/MindSpace-1\.2\.0-Windows-Portable-x64\.exe/);
+    await page.getByRole("button", { name: "稍后更新" }).click();
+    await expect(page.locator("#modal-container")).toHaveClass(/hidden/);
 
     const serviceWorkerSupported = await page.evaluate(() => "serviceWorker" in navigator);
     expect(serviceWorkerSupported).toBe(true);

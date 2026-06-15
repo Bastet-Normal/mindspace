@@ -4,6 +4,9 @@
  * Supports dual-navigation sync (Mobile bottom nav & Desktop sidebar).
  */
 
+const APP_VERSION = String(window.MINDSPACE_VERSION || "0.0.0");
+const RELEASES_URL = "https://github.com/wangjiehu/mindspace/releases";
+
 // Global App Instance
 const app = {
     // Auth Cache State
@@ -71,6 +74,9 @@ const app = {
      * Initialization Function
      */
     async init() {
+        const versionElement = document.getElementById('current-app-version');
+        if (versionElement) versionElement.innerText = `v${APP_VERSION}`;
+
         // Initialize Theme
         this.initTheme();
 
@@ -1045,7 +1051,7 @@ const app = {
                             }}
                         ]);
                     } catch (err) {
-                        this.showModal('导入失败 ❌', err.message || '备份数据解析失败，格式不正确。', [
+                        this.showModal('导入失败 ❌', escapeHTML(err.message || '备份数据解析失败，格式不正确。'), [
                             { text: '好的', class: 'secondary-btn', onClick: () => this.hideModal() }
                         ]);
                     } finally {
@@ -1083,33 +1089,39 @@ const app = {
                     if (!response.ok) throw new Error('网络请求错误');
                     const data = await response.json();
                     
-                    const latestVersion = data.tag_name;
-                    const currentVersion = 'v1.0.0';
-                    
-                    const cleanLatest = latestVersion.replace(/^v/, '');
-                    const cleanCurrent = currentVersion.replace(/^v/, '');
+                    const latestVersion = String(data.tag_name || '').trim();
+                    const currentVersion = `v${APP_VERSION}`;
+                    if (!latestVersion) throw new Error('最新版本信息缺失');
                     
                     if (icon) icon.style.animation = '';
                     
-                    if (cleanLatest !== cleanCurrent) {
+                    if (compareVersions(latestVersion, currentVersion) > 0) {
                         let downloadHtml = '';
                         if (data.assets && data.assets.length > 0) {
                             downloadHtml = '<p style="margin-top: 10px; font-weight: 500; font-size: 0.85rem;">下载资源:</p><ul style="list-style: none; padding-left: 0; margin-top: 5px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 6px;">';
                             data.assets.forEach(asset => {
-                                downloadHtml += `<li><a href="${asset.browser_download_url}" target="_blank" style="color: var(--accent-color); text-decoration: underline; display: inline-flex; align-items: center; gap: 4px;"><ion-icon name="download-outline"></ion-icon> ${asset.name} (${(asset.size / (1024 * 1024)).toFixed(2)} MB)</a></li>`;
+                                const assetUrl = safeGitHubUrl(asset.browser_download_url);
+                                if (!assetUrl) return;
+                                const assetName = escapeHTML(asset.name || '下载附件');
+                                const assetSize = Number(asset.size);
+                                const sizeLabel = Number.isFinite(assetSize) ? ` (${(assetSize / (1024 * 1024)).toFixed(2)} MB)` : '';
+                                downloadHtml += `<li><a href="${escapeHTML(assetUrl)}" target="_blank" rel="noopener noreferrer" style="color: var(--accent-color); text-decoration: underline; display: inline-flex; align-items: center; gap: 4px;"><ion-icon name="download-outline"></ion-icon> ${assetName}${sizeLabel}</a></li>`;
                             });
                             downloadHtml += '</ul>';
                         }
+
+                        const releaseUrl = safeGitHubUrl(data.html_url) || RELEASES_URL;
+                        const releaseNotes = escapeHTML(data.body || '无详细更新说明。');
                         
                         this.showModal('发现新版本 🎉', `
-                            <p style="font-size: 0.9rem; line-height: 1.5;">最新版本 <strong>${latestVersion}</strong> 已发布！</p>
-                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; white-space: pre-line; line-height: 1.4;">更新日志:<br>${data.body || '无详细更新说明。'}</p>
-                            \${downloadHtml}
+                            <p style="font-size: 0.9rem; line-height: 1.5;">最新版本 <strong>${escapeHTML(latestVersion)}</strong> 已发布！</p>
+                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; white-space: pre-line; line-height: 1.4;">更新日志:<br>${releaseNotes}</p>
+                            ${downloadHtml}
                         `, [
                             { text: '稍后更新', class: 'secondary-btn', onClick: () => this.hideModal() },
                             { text: '前往发布页', class: 'primary-btn', onClick: () => {
                                 this.hideModal();
-                                window.open(data.html_url || 'https://github.com/wangjiehu/mindspace/releases', '_blank');
+                                openExternalUrl(releaseUrl);
                             }}
                         ]);
                     } else {
@@ -1126,7 +1138,7 @@ const app = {
                     `, [
                         { text: '前往 GitHub 页面', class: 'primary-btn', onClick: () => {
                             this.hideModal();
-                            window.open('https://github.com/wangjiehu/mindspace/releases', '_blank');
+                            openExternalUrl(RELEASES_URL);
                         }}
                     ]);
                 }
@@ -1681,7 +1693,7 @@ const app = {
                             ]);
                         } catch (err) {
                             console.error(err);
-                            this.showModal('同步失败', '同步过程中出现错误，请重试：' + err.message, [
+                            this.showModal('同步失败', '同步过程中出现错误，请重试：' + escapeHTML(err.message), [
                                 { text: '确定', class: 'secondary-btn', onClick: () => this.hideModal() }
                             ]);
                         }
@@ -1745,7 +1757,7 @@ const app = {
                                 ]);
                             } catch (err) {
                                 console.error(err);
-                                this.showModal('同步失败', '同步过程中出现错误，请重试：' + err.message, [
+                                this.showModal('同步失败', '同步过程中出现错误，请重试：' + escapeHTML(err.message), [
                                     { text: '确定', class: 'secondary-btn', onClick: () => this.hideModal() }
                                 ]);
                             }
@@ -1815,7 +1827,7 @@ const app = {
             ]);
         } catch (err) {
             console.error(err);
-            this.showModal('同步失败', '同步过程中出现错误，请检查网络或配置：' + err.message, [
+            this.showModal('同步失败', '同步过程中出现错误，请检查网络或配置：' + escapeHTML(err.message), [
                 { text: '确定', class: 'secondary-btn', onClick: () => this.hideModal() }
             ]);
         }
@@ -1861,12 +1873,47 @@ const app = {
  * Escapes HTML helper to prevent XSS in local logs
  */
 function escapeHTML(str) {
-    return str
+    return String(str ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+function compareVersions(left, right) {
+    const parse = (version) => String(version)
+        .trim()
+        .replace(/^v/i, '')
+        .split(/[.+-]/)
+        .slice(0, 3)
+        .map((part) => Number.parseInt(part, 10) || 0);
+    const leftParts = parse(left);
+    const rightParts = parse(right);
+
+    for (let index = 0; index < 3; index += 1) {
+        if (leftParts[index] !== rightParts[index]) {
+            return leftParts[index] > rightParts[index] ? 1 : -1;
+        }
+    }
+    return 0;
+}
+
+function safeGitHubUrl(value) {
+    try {
+        const url = new URL(String(value));
+        if (url.protocol === 'https:' && (url.hostname === 'github.com' || url.hostname === 'objects.githubusercontent.com')) {
+            return url.toString();
+        }
+    } catch {
+        return null;
+    }
+    return null;
+}
+
+function openExternalUrl(value) {
+    const url = safeGitHubUrl(value) || RELEASES_URL;
+    window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 // Launch app when DOM is fully ready

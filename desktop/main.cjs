@@ -17,17 +17,29 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 function resolveAppFile(requestUrl) {
-  const root = app.getAppPath();
+  const root = path.resolve(app.getAppPath());
   const url = new URL(requestUrl);
   const requestedPath = decodeURIComponent(url.pathname || "/index.html")
     .replace(/^\/+/, "") || "index.html";
-  const filePath = path.normalize(path.join(root, requestedPath));
+  const filePath = path.resolve(root, requestedPath);
+  const relativePath = path.relative(root, filePath);
 
-  if (!filePath.startsWith(root)) {
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
     return null;
   }
 
   return filePath;
+}
+
+function openExternalUrl(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol === "https:" || url.protocol === "http:" || url.protocol === "mailto:") {
+      void shell.openExternal(url.toString());
+    }
+  } catch {
+    // Ignore malformed or unsupported navigation targets.
+  }
 }
 
 function registerAppProtocol() {
@@ -49,7 +61,7 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: "#F5F5F7",
     autoHideMenuBar: true,
-    icon: path.join(app.getAppPath(), "assets", "icon.png"),
+    icon: path.join(app.getAppPath(), "assets", "icon-1024.png"),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -60,14 +72,14 @@ function createWindow() {
   mainWindow.loadURL(`${APP_SCHEME}://app/index.html`);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    openExternalUrl(url);
     return { action: "deny" };
   });
 
   mainWindow.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith(`${APP_SCHEME}://`)) {
       event.preventDefault();
-      shell.openExternal(url);
+      openExternalUrl(url);
     }
   });
 }
