@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { version: APP_VERSION } = require("../package.json");
 
 function navigationSelector(page, view) {
   const width = page.viewportSize()?.width || 1440;
@@ -50,9 +51,9 @@ test.describe("MindSpace web compatibility", () => {
     await expect(page.locator("#app-container")).toBeVisible();
     await expect(page.locator("#greeting-text")).toBeVisible();
     await expect(page.locator("#quote-content")).toBeVisible();
-    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "manifest.webmanifest?v=1.1.0");
-    await expect(page.locator('link[rel="shortcut icon"]')).toHaveAttribute("href", "favicon.ico?v=1.1.0");
-    await expect(page.locator('link[rel="icon"][sizes="512x512"]')).toHaveAttribute("href", "assets/icon-512.png?v=1.1.0");
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", `manifest.webmanifest?v=${APP_VERSION}`);
+    await expect(page.locator('link[rel="shortcut icon"]')).toHaveAttribute("href", `favicon.ico?v=${APP_VERSION}`);
+    await expect(page.locator('link[rel="icon"][sizes="512x512"]')).toHaveAttribute("href", `assets/icon-512.png?v=${APP_VERSION}`);
 
     const manifest = await page.evaluate(async () => {
       const manifestHref = document.querySelector('link[rel="manifest"]').getAttribute("href");
@@ -60,9 +61,9 @@ test.describe("MindSpace web compatibility", () => {
       return response.json();
     });
     expect(manifest.icons.map((icon) => icon.src)).toEqual(expect.arrayContaining([
-      "assets/icon-192.png?v=1.1.0",
-      "assets/icon-512.png?v=1.1.0",
-      "assets/icon-1024.png?v=1.1.0"
+      `assets/icon-192.png?v=${APP_VERSION}`,
+      `assets/icon-512.png?v=${APP_VERSION}`,
+      `assets/icon-1024.png?v=${APP_VERSION}`
     ]));
     expect(manifest.icons).toHaveLength(3);
 
@@ -229,11 +230,24 @@ test.describe("MindSpace web compatibility", () => {
     await page.locator(navigationSelector(page, "focus")).click();
     await expect(page.locator("#view-focus")).toHaveClass(/active/);
     await expect(page.getByText("25:00")).toBeVisible();
+    await page.locator("#btn-timer-toggle").click();
+    await expect(page.locator("#timer-toggle-text")).toHaveText("暂停");
+    const alarmImplementation = await page.evaluate(() => ({
+      hasGeneratedAlarm: typeof MindSpaceFocusTimer.playAlarm === "function",
+      hasRemoteAudioElement: Boolean(MindSpaceFocusTimer.alarmAudio),
+      hasLocalAudioContext: Boolean(MindSpaceFocusTimer.alarmAudioContext),
+      supportsAudioContext: Boolean(window.AudioContext || window.webkitAudioContext)
+    }));
+    expect(alarmImplementation.hasGeneratedAlarm).toBe(true);
+    expect(alarmImplementation.hasRemoteAudioElement).toBe(false);
+    expect(alarmImplementation.hasLocalAudioContext).toBe(alarmImplementation.supportsAudioContext);
+    await page.locator("#btn-timer-toggle").click();
+    await expect(page.locator("#timer-toggle-text")).toHaveText("继续专注");
 
     await page.locator(navigationSelector(page, "settings")).click();
     await expect(page.locator("#view-settings")).toHaveClass(/active/);
     await expect(page.getByText("导出并下载我的心声随笔")).toBeVisible();
-    await expect(page.locator("#current-app-version")).toHaveText("v1.1.0");
+    await expect(page.locator("#current-app-version")).toHaveText(`v${APP_VERSION}`);
     await page.locator("#btn-check-update").click();
     await expect(page.locator("#modal-title")).toHaveText("发现新版本 🎉");
     await expect(page.locator("#modal-body")).toContainText("<b>兼容性测试更新</b>");
