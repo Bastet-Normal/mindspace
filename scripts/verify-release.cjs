@@ -21,6 +21,14 @@ expectMatch("index.html", new RegExp(`js/version\\.js\\?v=${version.replace(/\./
 expectMatch("index.html", new RegExp(`id="current-app-version">v${version.replace(/\./g, "\\.")}<`), "visible app version is stale");
 expectMatch("sw.js", new RegExp(`CACHE_NAME\\s*=\\s*["']mindspace-shell-v${version.replace(/\./g, "\\.")}["']`), "service worker cache version is stale");
 expectMatch("android/app/build.gradle", new RegExp(`versionName\\s+["']${version.replace(/\./g, "\\.")}["']`), "Android versionName does not match package.json");
+expectMatch("README.md", new RegExp(`当前正式版本：\\*\\*v${version.replace(/\./g, "\\.")}\\*\\*`), "README release version is stale");
+expectMatch("android/app/src/main/AndroidManifest.xml", /android:allowBackup="false"/, "Android app data backup must remain disabled");
+expectMatch("android/app/src/main/AndroidManifest.xml", /android:dataExtractionRules="@xml\/data_extraction_rules"/, "Android data extraction rules are missing");
+expectMatch("android/app/src/main/AndroidManifest.xml", /android:fullBackupContent="@xml\/backup_rules"/, "Android legacy backup rules are missing");
+
+if (/raw\.githubusercontent\.com|new Audio\(\s*["']https?:\/\//.test(read("js/focus.js"))) {
+  failures.push("js/focus.js: focus timer alarm must not depend on remote audio");
+}
 
 for (const duplicate of ["assets/icon.svg", "assets/icon.png", "assets/icon.ico"]) {
   if (fs.existsSync(path.join(root, duplicate))) {

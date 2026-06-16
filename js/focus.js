@@ -12,7 +12,7 @@ const MindSpaceFocusTimer = {
     isRunning: false,
     currentMode: 'work', // 'work' or 'break'
     soundAlertEnabled: true,
-    alarmAudio: null,
+    alarmAudioContext: null,
     _pendingFocusSeconds: 0,
 
     // SVG Config
@@ -78,9 +78,6 @@ const MindSpaceFocusTimer = {
             });
         }
 
-        // Lazy load Alarm sound
-        this.alarmAudio = new Audio('https://raw.githubusercontent.com/remvze/moodist/main/public/sounds/alarm.mp3');
-        this.alarmAudio.volume = 0.5;
     },
 
     /**
@@ -169,6 +166,8 @@ const MindSpaceFocusTimer = {
     start() {
         if (this.isRunning) return;
 
+        this.prepareAlarm();
+
         // Mutual Exclusion: Terminate breathing exercise if running
         if (typeof MindSpaceBreathing !== 'undefined' && MindSpaceBreathing.isActive) {
             MindSpaceBreathing.stop();
@@ -204,6 +203,72 @@ const MindSpaceFocusTimer = {
                 this.complete();
             }
         }, 1000);
+    },
+
+    /**
+     * Prepare the local Web Audio alarm while the start action still has a user gesture.
+     */
+    prepareAlarm() {
+        if (!this.soundAlertEnabled) return null;
+
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return null;
+
+        if (!this.alarmAudioContext || this.alarmAudioContext.state === 'closed') {
+            this.alarmAudioContext = new AudioContextClass();
+        }
+
+        if (this.alarmAudioContext.state === 'suspended') {
+            this.alarmAudioContext.resume().catch(error => {
+                console.warn('Alarm audio context could not be resumed:', error);
+            });
+        }
+
+        return this.alarmAudioContext;
+    },
+
+    /**
+     * Play a short generated chime without fetching an external audio file.
+     */
+    playAlarm() {
+        const context = this.prepareAlarm();
+        if (!context) return;
+
+        const playChime = () => {
+            const startAt = context.currentTime + 0.03;
+            const notes = [
+                { delay: 0, frequency: 659.25 },
+                { delay: 0.22, frequency: 783.99 },
+                { delay: 0.44, frequency: 987.77 }
+            ];
+
+            notes.forEach(({ delay, frequency }) => {
+                const oscillator = context.createOscillator();
+                const gain = context.createGain();
+                const noteStart = startAt + delay;
+                const noteEnd = noteStart + 0.32;
+
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(frequency, noteStart);
+                gain.gain.setValueAtTime(0.0001, noteStart);
+                gain.gain.exponentialRampToValueAtTime(0.18, noteStart + 0.035);
+                gain.gain.exponentialRampToValueAtTime(0.0001, noteEnd);
+
+                oscillator.connect(gain);
+                gain.connect(context.destination);
+                oscillator.start(noteStart);
+                oscillator.stop(noteEnd);
+            });
+        };
+
+        if (context.state === 'suspended') {
+            context.resume()
+                .then(playChime)
+                .catch(error => console.warn('Alarm playback blocked:', error));
+            return;
+        }
+
+        playChime();
     },
 
     /**
@@ -274,9 +339,8 @@ const MindSpaceFocusTimer = {
         this.pause();
 
         // Play alarm sound if enabled
-        if (this.soundAlertEnabled && this.alarmAudio) {
-            this.alarmAudio.currentTime = 0;
-            this.alarmAudio.play().catch(e => console.warn('Audio playback blocked:', e));
+        if (this.soundAlertEnabled) {
+            this.playAlarm();
         }
 
         // Show finishing modal
