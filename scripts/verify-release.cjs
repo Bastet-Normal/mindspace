@@ -16,6 +16,12 @@ function expectMatch(relativePath, pattern, description) {
   }
 }
 
+function expectNoMatch(relativePath, pattern, description) {
+  if (pattern.test(read(relativePath))) {
+    failures.push(`${relativePath}: ${description}`);
+  }
+}
+
 expectMatch("js/version.js", new RegExp(`MINDSPACE_VERSION\\s*=\\s*["']${version.replace(/\./g, "\\.")}["']`), "app version does not match package.json");
 expectMatch("index.html", new RegExp(`js/version\\.js\\?v=${version.replace(/\./g, "\\.")}`), "version script cache marker is stale");
 expectMatch("index.html", new RegExp(`id="current-app-version">v${version.replace(/\./g, "\\.")}<`), "visible app version is stale");
@@ -25,6 +31,10 @@ expectMatch("README.md", new RegExp(`当前正式版本：\\*\\*v${version.repla
 expectMatch("android/app/src/main/AndroidManifest.xml", /android:allowBackup="false"/, "Android app data backup must remain disabled");
 expectMatch("android/app/src/main/AndroidManifest.xml", /android:dataExtractionRules="@xml\/data_extraction_rules"/, "Android data extraction rules are missing");
 expectMatch("android/app/src/main/AndroidManifest.xml", /android:fullBackupContent="@xml\/backup_rules"/, "Android legacy backup rules are missing");
+expectMatch("js/config.js", /url:\s*["']\s*["']/, "default Supabase URL must remain empty for public builds");
+expectMatch("js/config.js", /anonKey:\s*["']\s*["']/, "default Supabase anon key must remain empty for public builds");
+expectNoMatch("js/config.js", /url:\s*["']https:\/\/[a-z0-9-]+\.supabase\.co["']/i, "public builds must not ship a default Supabase project URL");
+expectNoMatch("js/config.js", /anonKey:\s*["']eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+["']/, "public builds must not ship a default Supabase anon key");
 
 if (/raw\.githubusercontent\.com|new Audio\(\s*["']https?:\/\//.test(read("js/focus.js"))) {
   failures.push("js/focus.js: focus timer alarm must not depend on remote audio");

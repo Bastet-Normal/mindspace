@@ -425,6 +425,21 @@ body {
     font-size: 1.25rem;
 }
 
+.icon-fallback {
+    display: none;
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.icon-btn ion-icon:not(:defined) {
+    display: none;
+}
+
+.icon-btn ion-icon:not(:defined) + .icon-fallback {
+    display: inline;
+}
+
 .icon-btn:hover {
     transform: scale(1.05);
     background: rgba(255, 255, 255, 0.95);

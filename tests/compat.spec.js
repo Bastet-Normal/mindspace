@@ -11,6 +11,11 @@ test.describe("MindSpace web compatibility", () => {
   test("loads, navigates, records a mood, and exposes install metadata", async ({ page }, testInfo) => {
     const errors = [];
 
+    await page.route("https://cdn.jsdelivr.net/npm/ionicons@7.1.0/**", (route) => route.fulfill({
+      status: 200,
+      contentType: "application/javascript",
+      body: ""
+    }));
     await page.route("https://api.github.com/repos/Bastet-Normal/mindspace/releases/latest", async (route) => {
       await route.fulfill({
         status: 200,
@@ -51,6 +56,12 @@ test.describe("MindSpace web compatibility", () => {
     await expect(page.locator("#app-container")).toBeVisible();
     await expect(page.locator("#greeting-text")).toBeVisible();
     await expect(page.locator("#quote-content")).toBeVisible();
+    if ((page.viewportSize()?.width || 1440) < 768) {
+      await expect(page.locator("#mobile-auth-btn .icon-fallback")).toHaveText("账户");
+      await expect(page.locator("#mobile-auth-btn .icon-fallback")).toBeVisible();
+      await expect(page.locator("#theme-toggle .icon-fallback")).toHaveText("主题");
+      await expect(page.locator("#theme-toggle .icon-fallback")).toBeVisible();
+    }
     await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", `manifest.webmanifest?v=${APP_VERSION}`);
     await expect(page.locator('link[rel="shortcut icon"]')).toHaveAttribute("href", `favicon.ico?v=${APP_VERSION}`);
     await expect(page.locator('link[rel="icon"][sizes="512x512"]')).toHaveAttribute("href", `assets/icon-512.png?v=${APP_VERSION}`);
@@ -66,6 +77,20 @@ test.describe("MindSpace web compatibility", () => {
       `assets/icon-1024.png?v=${APP_VERSION}`
     ]));
     expect(manifest.icons).toHaveLength(3);
+
+    const cloudConfigState = await page.evaluate(() => ({
+      defaultUrl: window.SUPABASE_CONFIG?.url,
+      defaultAnonKey: window.SUPABASE_CONFIG?.anonKey,
+      isConfigured: window.SupabaseService?.isConfigured()
+    }));
+    expect(cloudConfigState).toEqual({
+      defaultUrl: "",
+      defaultAnonKey: "",
+      isConfigured: false
+    });
+    await page.locator(navigationSelector(page, "settings")).click();
+    await expect(page.locator("#view-settings")).toHaveClass(/active/);
+    await expect(page.getByText("当前数据保存在本地浏览器中。您可以配置云服务，开启多设备同步。")).toBeVisible();
 
     const styleHealth = await page.evaluate(async () => {
       const cssHref = document.querySelector('link[href^="css/style.css"]').getAttribute("href");
