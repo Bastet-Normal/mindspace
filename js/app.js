@@ -5,7 +5,7 @@
  */
 
 const APP_VERSION = String(window.MINDSPACE_VERSION || "0.0.0");
-const RELEASES_URL = "https://github.com/wangjiehu/mindspace/releases";
+const RELEASES_URL = "https://github.com/Bastet-Normal/mindspace/releases";
 
 // Global App Instance
 const app = {
@@ -1082,7 +1082,7 @@ const app = {
                 if (icon) icon.style.animation = 'auth-spin 1s linear infinite';
                 
                 try {
-                    const response = await fetch('https://api.github.com/repos/wangjiehu/mindspace/releases/latest', {
+                    const response = await fetch('https://api.github.com/repos/Bastet-Normal/mindspace/releases/latest', {
                         headers: { 'Accept': 'application/vnd.github.v3+json' }
                     });
                     

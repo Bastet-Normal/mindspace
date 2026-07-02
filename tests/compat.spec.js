@@ -11,19 +11,19 @@ test.describe("MindSpace web compatibility", () => {
   test("loads, navigates, records a mood, and exposes install metadata", async ({ page }, testInfo) => {
     const errors = [];
 
-    await page.route("https://api.github.com/repos/wangjiehu/mindspace/releases/latest", async (route) => {
+    await page.route("https://api.github.com/repos/Bastet-Normal/mindspace/releases/latest", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           tag_name: "v1.2.0",
-          html_url: "https://github.com/wangjiehu/mindspace/releases/tag/v1.2.0",
+          html_url: "https://github.com/Bastet-Normal/mindspace/releases/tag/v1.2.0",
           body: "<b>兼容性测试更新</b>",
           assets: [
             {
               name: "MindSpace-1.2.0-Windows-Portable-x64.exe",
               size: 1048576,
-              browser_download_url: "https://github.com/wangjiehu/mindspace/releases/download/v1.2.0/MindSpace-1.2.0-Windows-Portable-x64.exe"
+              browser_download_url: "https://github.com/Bastet-Normal/mindspace/releases/download/v1.2.0/MindSpace-1.2.0-Windows-Portable-x64.exe"
             }
           ]
         })
