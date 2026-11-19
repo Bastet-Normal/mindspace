@@ -58,12 +58,12 @@ npm run verify:release
 # 2. 运行本地开发调试 (浏览器打开 http://127.0.0.1:4289)
 npm run serve
 
-# 3. 运行兼容性与端到端测试 (Playwright)
+# 3. 运行兼容性与端到端测试 (macOS Safari)
 # macOS 本地的桌面及移动 WebKit 验证
-npx playwright install webkit
+sudo safaridriver --enable
 npm run test:safari
 
-# 全浏览器兼容性验证
+# 使用相同的 Safari 用例验证五种窗口尺寸
 npm run test:compat
 
 # 4. 编译并同步至 Android (需配置 JAVA_HOME 环境变量)
