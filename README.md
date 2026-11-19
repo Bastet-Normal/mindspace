@@ -59,6 +59,11 @@ npm run verify:release
 npm run serve
 
 # 3. 运行兼容性与端到端测试 (Playwright)
+# macOS 本地的桌面及移动 WebKit 验证
+npx playwright install webkit
+npm run test:safari
+
+# 全浏览器兼容性验证
 npm run test:compat
 
 # 4. 编译并同步至 Android (需配置 JAVA_HOME 环境变量)

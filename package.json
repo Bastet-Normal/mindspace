@@ -11,6 +11,7 @@
   "scripts": {
     "serve": "http-server . -a 127.0.0.1 -p 4289 -c-1",
     "verify:release": "node scripts/verify-release.cjs",
+    "test:safari": "playwright test --project=desktop-webkit --project=mobile-ios-safari",
     "test:compat": "playwright test",
     "desktop:dev": "electron .",
     "desktop:pack": "electron-builder --dir",
