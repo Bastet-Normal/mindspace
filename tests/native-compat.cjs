@@ -1,27 +1,9 @@
-const { test, expect } = require("@playwright/test");
+const { test } = require("node:test");
+const { expect } = require("expect");
+const { setTimeout: delay } = require("node:timers/promises");
+const { openSafari } = require("./safari-page.cjs");
 const { version: APP_VERSION } = require("../package.json");
-
-function navigationSelector(page, view) {
-  const width = page.viewportSize()?.width || 1440;
-  const container = width < 768 ? "#bottom-nav" : "#desktop-sidebar";
-  return `${container} [data-view="${view}"]`;
-}
-
-test.describe("MindSpace web compatibility", () => {
-  test("loads, navigates, records a mood, and exposes install metadata", async ({ page }, testInfo) => {
-    const errors = [];
-
-    await page.route("https://cdn.jsdelivr.net/npm/ionicons@7.1.0/**", (route) => route.fulfill({
-      status: 200,
-      contentType: "application/javascript",
-      body: ""
-    }));
-    await page.route("https://api.github.com/repos/Bastet-Normal/mindspace/releases/latest", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          tag_name: "v1.2.0",
+const release = {tag_name: "v1.2.0",
           html_url: "https://github.com/Bastet-Normal/mindspace/releases/tag/v1.2.0",
           body: "<b>兼容性测试更新</b>",
           assets: [
@@ -31,40 +13,42 @@ test.describe("MindSpace web compatibility", () => {
               browser_download_url: "https://github.com/Bastet-Normal/mindspace/releases/download/v1.2.0/MindSpace-1.2.0-Windows-Portable-x64.exe"
             }
           ]
-        })
-      });
-    });
+};
 
-    page.on("pageerror", (error) => errors.push(error.message));
-    page.on("console", (message) => {
-      if (message.type() === "error" && !message.text().includes("Failed to load resource")) {
-        errors.push(message.text());
-      }
-    });
-    page.on("response", (response) => {
-      if (response.status() >= 400) {
-        const url = response.url();
-        const ignored = url.endsWith("/favicon.ico");
-        if (!ignored) {
-          errors.push(`${response.status()} ${url}`);
-        }
-      }
-    });
+async function verify(read, expected, contains = false) {
+  const deadline = Date.now() + 12000;
+  while (true) {
+    try {
+      const actual = await read();
+      if (contains) expect(actual).toContain(expected);
+      else if (expected instanceof RegExp) expect(actual).toMatch(expected);
+      else expect(actual).toEqual(expected);
+      return;
+    } catch (err) { if (Date.now() >= deadline) throw err; await delay(100); }
+  }
+}
+function navigationSelector(page, view) {
+  const width = page.viewportSize()?.width || 1440;
+  const container = width < 768 ? "#bottom-nav" : "#desktop-sidebar";
+  return `${container} [data-view="${view}"]`;
+}
 
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-
-    await expect(page.locator("#app-container")).toBeVisible();
-    await expect(page.locator("#greeting-text")).toBeVisible();
-    await expect(page.locator("#quote-content")).toBeVisible();
+for (const [width,height] of [[1440,900],[1366,768],[412,915],[360,740],[390,844]]) {
+  test(`Safari compatibility at ${width} × ${height}`, async t => {
+    const page = await openSafari(width, height, release);
+    t.after(() => page.close());
+    await verify(() => page.locator("#app-container").visible(), true);
+    await verify(() => page.locator("#greeting-text").visible(), true);
+    await verify(() => page.locator("#quote-content").visible(), true);
     if ((page.viewportSize()?.width || 1440) < 768) {
-      await expect(page.locator("#mobile-auth-btn .icon-fallback")).toHaveText("账户");
-      await expect(page.locator("#mobile-auth-btn .icon-fallback")).toBeVisible();
-      await expect(page.locator("#theme-toggle .icon-fallback")).toHaveText("主题");
-      await expect(page.locator("#theme-toggle .icon-fallback")).toBeVisible();
+      await verify(() => page.locator("#mobile-auth-btn .icon-fallback").text(), "账户");
+      await verify(() => page.locator("#mobile-auth-btn .icon-fallback").visible(), true);
+      await verify(() => page.locator("#theme-toggle .icon-fallback").text(), "主题");
+      await verify(() => page.locator("#theme-toggle .icon-fallback").visible(), true);
     }
-    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", `manifest.webmanifest?v=${APP_VERSION}`);
-    await expect(page.locator('link[rel="shortcut icon"]')).toHaveAttribute("href", `favicon.ico?v=${APP_VERSION}`);
-    await expect(page.locator('link[rel="icon"][sizes="512x512"]')).toHaveAttribute("href", `assets/icon-512.png?v=${APP_VERSION}`);
+    await verify(() => page.locator('link[rel="manifest"]').attribute("href"), `manifest.webmanifest?v=${APP_VERSION}`);
+    await verify(() => page.locator('link[rel="shortcut icon"]').attribute("href"), `favicon.ico?v=${APP_VERSION}`);
+    await verify(() => page.locator('link[rel="icon"][sizes="512x512"]').attribute("href"), `assets/icon-512.png?v=${APP_VERSION}`);
 
     const manifest = await page.evaluate(async () => {
       const manifestHref = document.querySelector('link[rel="manifest"]').getAttribute("href");
@@ -89,8 +73,8 @@ test.describe("MindSpace web compatibility", () => {
       isConfigured: false
     });
     await page.locator(navigationSelector(page, "settings")).click();
-    await expect(page.locator("#view-settings")).toHaveClass(/active/);
-    await expect(page.getByText("当前数据保存在本地浏览器中。您可以配置云服务，开启多设备同步。")).toBeVisible();
+    await verify(() => page.locator("#view-settings").attribute("class"), /active/);
+    await verify(() => page.byText("当前数据保存在本地浏览器中。您可以配置云服务，开启多设备同步。").visible(), true);
 
     const styleHealth = await page.evaluate(async () => {
       const cssHref = document.querySelector('link[href^="css/style.css"]').getAttribute("href");
@@ -118,17 +102,17 @@ test.describe("MindSpace web compatibility", () => {
         window.SupabaseService.isConfigured = originalIsConfigured;
       }
     });
-    await expect(page.locator("#auth-modal")).toBeVisible();
-    await expect(page.locator("#auth-modal")).toHaveAttribute("data-force-auth", "true");
-    await expect(page.locator("#auth-modal .modal-close-btn")).toHaveClass(/hidden/);
-    await expect(page.locator("#login-form")).toHaveJSProperty("noValidate", true);
+    await verify(() => page.locator("#auth-modal").visible(), true);
+    await verify(() => page.locator("#auth-modal").attribute("data-force-auth"), "true");
+    await verify(() => page.locator("#auth-modal .modal-close-btn").attribute("class"), /hidden/);
+    await verify(() => page.locator("#login-form").property("noValidate"), true);
     await page.locator("#login-email").fill("saved-account@example.com");
     const filledEmailBackground = await page.locator("#login-email").evaluate((input) => getComputedStyle(input).backgroundColor);
     expect(filledEmailBackground).not.toBe("rgb(255, 255, 255)");
     await page.locator("#login-email").fill("");
     await page.locator("#login-form .auth-submit-btn").click();
-    await expect(page.locator("#login-email-error")).toHaveText("请输入邮箱地址。");
-    await expect(page.locator("#login-email")).toHaveAttribute("aria-invalid", "true");
+    await verify(() => page.locator("#login-email-error").text(), "请输入邮箱地址。");
+    await verify(() => page.locator("#login-email").attribute("aria-invalid"), "true");
 
     await page.evaluate(() => {
       document.querySelector("#auth-modal").dataset.forceAuth = "false";
@@ -136,18 +120,18 @@ test.describe("MindSpace web compatibility", () => {
       document.body.classList.remove("auth-gate-active");
       app.authGateActive = false;
     });
-    await expect(page.locator("#auth-modal")).toHaveClass(/hidden/);
+    await verify(() => page.locator("#auth-modal").attribute("class"), /hidden/);
 
     await page.locator(navigationSelector(page, "weather")).click();
-    await expect(page.locator("#view-weather")).toHaveClass(/active/);
-    await page.locator("#mood-note").fill(`兼容性测试记录 - ${testInfo.project.name}`);
+    await verify(() => page.locator("#view-weather").attribute("class"), /active/);
+    await page.locator("#mood-note").fill(`兼容性测试记录 - ${width + "px"}`);
     await page.locator("#save-log-btn").click();
-    await expect(page.locator("#modal-container")).toBeVisible();
-    await expect(page.locator("#modal-title")).toContainText("已记入心空");
-    await page.getByRole("button", { name: "查看随笔" }).click();
-    await expect(page.locator("#modal-container")).toHaveClass(/hidden/);
-    await expect(page.locator("#view-journal")).toHaveClass(/active/);
-    await expect(page.getByText("兼容性测试记录")).toBeVisible();
+    await verify(() => page.locator("#modal-container").visible(), true);
+    await verify(() => page.locator("#modal-title").text(), "已记入心空", true);
+    await page.byText("查看随笔", "button").click();
+    await verify(() => page.locator("#modal-container").attribute("class"), /hidden/);
+    await verify(() => page.locator("#view-journal").attribute("class"), /active/);
+    await verify(() => page.byText("兼容性测试记录").visible(), true);
 
     await page.evaluate(async () => {
       const longNote = `长随笔压测 ${"这是一段用于验证手机和桌面布局的长内容，应该被限制在文字区域内，不能压住删除按钮。".repeat(12)}`;
@@ -162,8 +146,8 @@ test.describe("MindSpace web compatibility", () => {
       localStorage.setItem(MindSpaceStorage.KEYS.LOGS, JSON.stringify(logs));
       await app.renderJournalList();
     });
-    const longJournalCard = page.locator(".journal-card").filter({ hasText: "长随笔压测" }).first();
-    await expect(longJournalCard).toBeVisible();
+    const longJournalCard = page.xpath("//*[contains(concat(' ',normalize-space(@class),' '),' journal-card ') and contains(.,'长随笔压测')]");
+    await verify(() => longJournalCard.visible(), true);
     const journalLayout = await longJournalCard.evaluate((card) => {
       const note = card.querySelector(".journal-note-preview");
       const button = card.querySelector(".journal-delete-btn");
@@ -186,11 +170,11 @@ test.describe("MindSpace web compatibility", () => {
     expect(journalLayout.buttonWidth).toBeGreaterThanOrEqual(32);
 
     await page.locator(navigationSelector(page, "insights")).click();
-    await expect(page.locator("#view-insights")).toHaveClass(/active/);
-    await expect(page.locator("#weather-calendar-grid")).toBeVisible();
-    await expect(page.locator("#climate-gauge-value")).toHaveText("100");
-    await expect(page.locator("#climate-gauge-status")).toHaveText("澄澈");
-    await expect(page.getByText("(点击圆点或悬浮查看随笔)")).toHaveCount(0);
+    await verify(() => page.locator("#view-insights").attribute("class"), /active/);
+    await verify(() => page.locator("#weather-calendar-grid").visible(), true);
+    await verify(() => page.locator("#climate-gauge-value").text(), "100");
+    await verify(() => page.locator("#climate-gauge-status").text(), "澄澈");
+    await verify(() => page.byText("(点击圆点或悬浮查看随笔)").count(), 0);
 
     const weightedClimateIndex = await page.evaluate(() => {
       const day = 24 * 60 * 60 * 1000;
@@ -226,12 +210,12 @@ test.describe("MindSpace web compatibility", () => {
     });
 
     const weatherDay = page.locator("#weather-calendar-grid .calendar-day.has-note").last();
-    await expect(weatherDay).toBeVisible();
-    await expect(page.locator("#weather-calendar-grid .calendar-day-note-dot")).toHaveCount(0);
+    await verify(() => weatherDay.visible(), true);
+    await verify(() => page.locator("#weather-calendar-grid .calendar-day-note-dot").count(), 0);
 
     await page.locator(navigationSelector(page, "breathing")).click();
-    await expect(page.locator("#view-breathing")).toHaveClass(/active/);
-    await expect(page.locator("#start-breath-btn")).toBeVisible();
+    await verify(() => page.locator("#view-breathing").attribute("class"), /active/);
+    await verify(() => page.locator("#start-breath-btn").visible(), true);
     const breathingSpacing = await page.evaluate(() => {
       const layout = document.querySelector(".breathing-split-layout");
       const controls = document.querySelector(".breathing-panel-controls");
@@ -253,10 +237,10 @@ test.describe("MindSpace web compatibility", () => {
     }
 
     await page.locator(navigationSelector(page, "focus")).click();
-    await expect(page.locator("#view-focus")).toHaveClass(/active/);
-    await expect(page.getByText("25:00")).toBeVisible();
+    await verify(() => page.locator("#view-focus").attribute("class"), /active/);
+    await verify(() => page.byText("25:00").visible(), true);
     await page.locator("#btn-timer-toggle").click();
-    await expect(page.locator("#timer-toggle-text")).toHaveText("暂停");
+    await verify(() => page.locator("#timer-toggle-text").text(), "暂停");
     const alarmImplementation = await page.evaluate(() => ({
       hasGeneratedAlarm: typeof MindSpaceFocusTimer.playAlarm === "function",
       hasRemoteAudioElement: Boolean(MindSpaceFocusTimer.alarmAudio),
@@ -267,22 +251,22 @@ test.describe("MindSpace web compatibility", () => {
     expect(alarmImplementation.hasRemoteAudioElement).toBe(false);
     expect(alarmImplementation.hasLocalAudioContext).toBe(alarmImplementation.supportsAudioContext);
     await page.locator("#btn-timer-toggle").click();
-    await expect(page.locator("#timer-toggle-text")).toHaveText("继续专注");
+    await verify(() => page.locator("#timer-toggle-text").text(), "继续专注");
 
     await page.locator(navigationSelector(page, "settings")).click();
-    await expect(page.locator("#view-settings")).toHaveClass(/active/);
-    await expect(page.getByText("导出并下载我的心声随笔")).toBeVisible();
-    await expect(page.locator("#current-app-version")).toHaveText(`v${APP_VERSION}`);
+    await verify(() => page.locator("#view-settings").attribute("class"), /active/);
+    await verify(() => page.byText("导出并下载我的心声随笔").visible(), true);
+    await verify(() => page.locator("#current-app-version").text(), `v${APP_VERSION}`);
     await page.locator("#btn-check-update").click();
-    await expect(page.locator("#modal-title")).toHaveText("发现新版本 🎉");
-    await expect(page.locator("#modal-body")).toContainText("<b>兼容性测试更新</b>");
-    await expect(page.locator("#modal-body a")).toHaveText(/MindSpace-1\.2\.0-Windows-Portable-x64\.exe/);
-    await page.getByRole("button", { name: "稍后更新" }).click();
-    await expect(page.locator("#modal-container")).toHaveClass(/hidden/);
+    await verify(() => page.locator("#modal-title").text(), "发现新版本 🎉");
+    await verify(() => page.locator("#modal-body").text(), "<b>兼容性测试更新</b>", true);
+    await verify(() => page.locator("#modal-body a").text(), /MindSpace-1\.2\.0-Windows-Portable-x64\.exe/);
+    await page.byText("稍后更新", "button").click();
+    await verify(() => page.locator("#modal-container").attribute("class"), /hidden/);
 
     const serviceWorkerSupported = await page.evaluate(() => "serviceWorker" in navigator);
     expect(serviceWorkerSupported).toBe(true);
 
-    expect(errors).toEqual([]);
+    expect(await page.errors()).toEqual([]);
   });
-});
+}

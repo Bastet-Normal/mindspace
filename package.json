@@ -11,8 +11,8 @@
   "scripts": {
     "serve": "http-server . -a 127.0.0.1 -p 4289 -c-1",
     "verify:release": "node scripts/verify-release.cjs",
-    "test:safari": "playwright test --project=desktop-webkit --project=mobile-ios-safari",
-    "test:compat": "playwright test",
+    "test:safari": "node --test tests/native-compat.cjs",
+    "test:compat": "npm run test:safari",
     "desktop:dev": "electron .",
     "desktop:pack": "electron-builder --dir",
     "desktop:build:win:arm64": "electron-builder --win nsis portable --arm64 --publish never",
@@ -98,10 +98,11 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.0",
-    "@playwright/test": "^1.53.0",
     "electron": "^42.4.0",
     "electron-builder": "^26.15.3",
+    "expect": "30.2.0",
     "http-server": "^14.1.1",
+    "selenium-webdriver": "4.35.0",
     "sharp": "^0.34.5"
   },
   "dependencies": {
