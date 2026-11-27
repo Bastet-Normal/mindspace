@@ -4,6 +4,16 @@ const httpServer = require("http-server");
 const { readFileSync } = require("node:fs");
 
 async function openSafari(width, height, release) {
+  try {
+    return await openSession(width, height, release);
+  } catch (error) {
+    if (!/ECONNREFUSED/.test(error.message)) throw error;
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return openSession(width, height, release);
+  }
+}
+
+async function openSession(width, height, release) {
   const errors = [];
   const html = readFileSync("index.html", "utf8")
     .replace("<head>", `<head><script>

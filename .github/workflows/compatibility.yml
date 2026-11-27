@@ -8,6 +8,14 @@ on:
       - "v*"
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing version tag to rebuild and publish (leave empty for a build only)
+        required: false
+        type: string
+
+env:
+  SOURCE_REF: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
 
 concurrency:
   group: mindspace-${{ github.workflow }}-${{ github.ref }}
@@ -20,6 +28,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -29,6 +39,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Match requested tag to application version
+        if: inputs.release_tag != ''
+        env:
+          REQUESTED_TAG: ${{ inputs.release_tag }}
+        run: node -e "if (process.env.REQUESTED_TAG !== 'v' + require('./package.json').version) process.exit(1)"
 
       - name: Verify release metadata
         run: npm run verify:release
@@ -59,6 +75,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -91,6 +109,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -106,6 +126,8 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36'
 
       - name: Install dependencies
         run: npm ci
@@ -135,7 +157,7 @@ jobs:
 
   publish-release:
     name: Publish GitHub release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     needs:
       - web-compatibility
       - desktop-packages
@@ -167,6 +189,7 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
           generate_release_notes: true
           files: |
             release-artifacts/MindSpace-*-Windows-Setup-*.exe
