@@ -80,6 +80,6 @@ npm run serve
 
 ## 部署与下载
 
-网页版直接从 `main` 分支的根目录发布到 GitHub Pages。发布新版本时，先在候选分支通过远程 macOS 的原生 Safari 检查，再将同一提交同步到 `main`，并推送与应用版本一致的标签（如 `v1.2.72`）。
+网页版直接从 `main` 分支的根目录发布到 GitHub Pages。发布新版本时，先在候选分支通过远程 macOS 的原生 Safari 检查，再把通过验证的版本同步到 `main`，并推送与应用版本一致的标签（如 `v1.2.72`）。
 
 版本标签会触发 Windows x64 / ARM64 安装包与便携版、Linux AppImage 与 deb、Android 调试 APK 与未签名 AAB 的构建。成功后，GitHub Release 会附上这些文件和 `SHA256SUMS.txt`。如需重建已打标签的版本，可手动运行工作流并填写原标签；留空只构建附件。[构建与发布工作流](.github/workflows/compatibility.yml)
