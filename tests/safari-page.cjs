@@ -22,7 +22,7 @@ async function openSafari(width, height, release) {
     (req, res) => {
       const pathname = new URL(req.url, "http://localhost").pathname;
       res.on("finish", () => { if (res.statusCode >= 400 && pathname !== "/favicon.ico") errors.push(res.statusCode + " " + pathname); });
-      if (pathname === "/") { res.setHeader("Content-Type","text/html; charset=utf-8"); return res.end(html); }
+      if (pathname === "/" || pathname === "/index.html") { res.setHeader("Content-Type","text/html; charset=utf-8"); return res.end(html); }
       if (pathname === "/compat-frame") {
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         return res.end(`<!doctype html><meta name="viewport" content="width=device-width"><style>body{margin:0}iframe{display:block;border:0}</style>
@@ -42,11 +42,12 @@ async function openSafari(width, height, release) {
     const [dx, dy] = await driver.executeScript("return [outerWidth-innerWidth, outerHeight-innerHeight]");
     await driver.manage().window().setRect({x:0,y:0,width:width+dx,height:height+dy});
     const baseUrl = "http://127.0.0.1:" + server.server.address().port;
-    await driver.get(baseUrl + "/");
     const measured = await driver.executeScript("return [innerWidth, innerHeight]");
     if (measured[0] !== width || measured[1] !== height) {
       await driver.get(baseUrl + "/compat-frame");
       await driver.switchTo().frame(await driver.findElement(By.id("compat-view")));
+    } else {
+      await driver.get(baseUrl + "/");
     }
     function locator(by, last = false) {
       const all = () => driver.findElements(by);
