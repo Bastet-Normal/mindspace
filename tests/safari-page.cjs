@@ -57,7 +57,7 @@ async function openSafari(width, height, release) {
         visible: async () => Boolean(await target()) && (await target()).isDisplayed(),
         async click() {
           const el = await target();
-          await driver.executeScript("arguments[0].scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'})", el);
+          await driver.executeScript("arguments[0].scrollIntoView({block:'center',inline:'nearest',behavior:'instant'})", el);
           try {
             await driver.wait(() => driver.executeScript(function(element) {
               const rect = element.getBoundingClientRect();

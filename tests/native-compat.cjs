@@ -245,11 +245,12 @@ for (const [width, height] of [[1440, 900], [1024, 768], [768, 900], [390, 844],
         await show("focus");
         await page.locator("#btn-timer-toggle").click();
         await waitFor(() => page.locator("#timer-toggle-text").text(), "暂停");
-        await page.evaluate(() => {
-            MindSpaceFocusTimer.lastRun.startedAt -= 120_000;
+        const remaining = await page.evaluate(() => {
+            MindSpaceFocusTimer.lastRun.startedAt = Date.now() - 120_000;
             MindSpaceFocusTimer.tick();
+            return document.getElementById("timer-digits").textContent;
         });
-        expect(await page.locator("#timer-digits").text()).toBe("23:00");
+        expect(remaining).toBe("23:00");
         await page.locator("#btn-timer-toggle").click();
         expect(await page.locator("#timer-toggle-text").text()).toBe("继续专注");
 
