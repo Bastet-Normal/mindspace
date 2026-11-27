@@ -57,11 +57,20 @@ async function openSafari(width, height, release) {
         visible: async () => Boolean(await target()) && (await target()).isDisplayed(),
         async click() {
           const el = await target();
-          await driver.wait(() => driver.executeScript(function(el) {
-            el.scrollIntoView({block:"center",behavior:"instant"});
-            const r=el.getBoundingClientRect();
-            return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
-          },el),5000, "Cannot click " + by.toString());
+          await driver.executeScript("arguments[0].scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'})", el);
+          try {
+            await driver.wait(() => driver.executeScript(function(element) {
+              const rect = element.getBoundingClientRect();
+              return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+            }, el), 5000);
+          } catch (cause) {
+            const detail = await driver.executeScript(function(element) {
+              const rect = element.getBoundingClientRect();
+              const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+              return { route: location.hash, rect: rect.toJSON(), hit: hit?.outerHTML.slice(0, 180), viewport: [innerWidth, innerHeight] };
+            }, el);
+            throw new Error("Cannot click " + by + " " + JSON.stringify(detail), { cause });
+          }
           await el.click();
         },
         text: async () => (await target()).getText(),

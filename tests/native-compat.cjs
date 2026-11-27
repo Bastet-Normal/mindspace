@@ -34,9 +34,12 @@ for (const [width, height] of [[1440, 900], [1024, 768], [768, 900], [390, 844],
     test(`MindSpace native Safari at ${width} × ${height}`, async t => {
         const page = await openSafari(width, height, release);
         t.after(() => page.close());
-        const nav = width < 1024 ? "#bottom-nav" : "#desktop-sidebar";
         const show = route => waitFor(() => page.locator(`#view-${route}`).visible(), true);
-        const navigate = route => page.locator(`${nav} [data-view="${route}"]`).click();
+        const desktopNav = page.locator("#desktop-sidebar");
+        const navigate = async route => {
+            const nav = await desktopNav.visible() ? "#desktop-sidebar" : "#bottom-nav";
+            await page.locator(`${nav} [data-view="${route}"]`).click();
+        };
 
         await show("dashboard");
         expect(await page.viewportSize()).toEqual({ width, height });
@@ -198,7 +201,7 @@ for (const [width, height] of [[1440, 900], [1024, 768], [768, 900], [390, 844],
         await page.locator("#toast-action").click();
         await waitFor(() => page.locator(".journal-note-preview").text(), "已修改的随笔");
 
-        if (width < 1024) await page.locator('#view-journal [data-go="insights"]').click();
+        if (!await desktopNav.visible()) await page.locator('#view-journal [data-go="insights"]').click();
         else await navigate("insights");
         await show("insights");
         expect(await page.locator("#weather-calendar-grid .calendar-day").count()).toBe(30);
