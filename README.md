@@ -1,90 +1,85 @@
-# MindSpace · 心空 🍃
+# MindSpace
 
-> **「无论此刻你的内心是晴是雨，都在这里安歇片刻吧。」**
+选一两种天气记下今天的心情，写一段日记，或者留一分钟做个呼吸练习。首次打开即可记录，数据默认保存在当前设备。
 
-MindSpace 是一款本地优先、零压力、非批判性的心灵疗愈与正念呼吸助手。在数字喧嚣的当下，我们采用极简的毛玻璃美学设计，辅以本地离线高保真白噪音和正念呼吸引导，在本地存储层为您构建起一座纯净、安宁、完全属于您个人的**心灵避风港**。
+当前版本 **v1.2.72** · [打开网页版](https://bastet-normal.github.io/mindspace/) · [下载 Windows、Linux 或 Android 版](https://github.com/Bastet-Normal/mindspace/releases/latest)
 
-当前正式版本：**v1.1.1**
+## 写日记与回顾
 
-<p align="left">
-  <a href="https://bastet-normal.github.io/mindspace/">🌐 在线网页体验 (PWA)</a> &nbsp;·&nbsp;
-  <a href="https://github.com/Bastet-Normal/mindspace/releases">📦 桌面端与安卓 APK 下载</a>
-</p>
+- **记录心情**　从晴朗、微风、阴天、大雾、小雨和雷雨中选一到两种，可以直接记录此刻，也可以指定日期和时间补记。
+- **写随笔**　正文最多可写 12,000 字，可加标签、自定义标签或留作草稿。底部字体菜单显示当前字体。选中文字后切换字体会应用到选区，直接切换则用于接下来输入的文字。同一篇可以混用宋体、文楷、朱雀仿宋等字体。[字体来源与许可](assets/fonts/README.md)
+- **翻看记录**　在「心情日记」搜索文字、标签或天气，也可按天气和时间筛选。「七日心情」和「天气回顾」按日汇总，点选日期可查看当天的全部记录。
 
----
+每篇日记计 1 分，两种天气各得 0.5 分。例如，当天第一篇选「晴朗＋小雨」，第二篇只选「晴朗」，当天汇总就是晴朗 1.5 分、小雨 0.5 分。首页今日天气、七日心情和回顾日历都采用这套规则。
 
-## 🚀 核心功能 (Core Features)
+## 呼吸、专注与环境声
 
-* **🌤️ 内心天气日志**：用“晴朗、微风、阴天、大雾、小雨、雷雨” 6 种自然天气投影代替冷冰冰的情绪分数，温暖接纳心境起伏。
-* **🧘 正念呼吸舱**：内置 **4-7-8 深度安神** 与 **5-5 平衡呼吸** 双模式，配合 HTML5 Canvas 动态粒子涨落与高保真提示音引导。
-* **⏱️ 静心专注舱**：内置 6 种完全本地化、支持离线播放的自然白噪音音轨（雨声、微风、海浪、篝火、鸟鸣、咖啡馆），支持多通道淡入淡出混音。
-* **📊 心灵气象导图**：基于近期天气进行智能加权分析，以环形仪表盘展示“心灵晴空指数”，并通过 30 天日历和因子分析归纳情绪触发源。
-* **🎨 自适应美学**：精心适配 `<380px`（窄屏）、`<767px`（手机）、`768px~1023px`（平板）和 `1024px~1440px`（桌面），实现大屏铺满，小屏化繁为简。
+「呼吸练习」提供一分钟练习、5-5 平衡呼吸和 4-7-8 慢呼吸，可开启阶段提示音。切到后台会暂停引导，回到页面可继续练习。
 
----
+「专注与声音」提供预设时长和 1–180 分钟自定义计时，刷新后可恢复计时。六轨环境声可单独播放。网页版可在专注页下载音轨供离线使用，桌面与 Android 安装包内已包含音轨。
 
-## ☁️ 云端同步 (Supabase Sync)
+## 备份与同步
 
-MindSpace 默认将数据完全保存在本地浏览器（LocalStorage）中。若需启用多设备同步，可配置个人 Supabase 数据库：
+在「设置 → 日记与备份」中，选 **导出日记（.md）** 可获得便于阅读的文本，选 **导出完整备份（.json）** 可在另一台设备上恢复日记、设置和练习数据。备份包含日记原文，换设备或清除本机数据前请先导出并妥善保存。
 
-1. **执行建表 SQL 及 RLS 安全策略**：
+恢复前可预览内容。重复导入同一份备份会合并记录和练习时长。恢复默认写入本机，如果已连接云账户，可在预览中选择将本次新增的日记上传到该账户。
+
+### 使用自己的 Supabase 项目
+
+在「设置 → 云同步」填写项目地址和 Publishable Key（或旧版 anon 公钥），登录并启用同步。云端同步日记，练习统计和偏好保存在本机。首次启用时可选择上传本机已有日记。离线编辑会在重新连接后重试，遇到同一篇日记在云端也被修改或删除时，会将本机修改另存一篇。
+
+<details>
+<summary>首次建表与已有项目升级</summary>
+
+在新项目的 SQL 编辑器中运行以下语句，创建日记表并限制每个账户只能访问自己的记录。
+
 ```sql
 create table public.mood_logs (
-    id uuid not null default gen_random_uuid(),
+    id uuid primary key default gen_random_uuid(),
     user_id uuid not null references auth.users(id) on delete cascade,
     timestamp bigint not null,
     weather text not null,
-    tags text[] not null default '{}'::text[],
-    note text not null default ''::text,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-    constraint mood_logs_pkey primary key (id)
+    tags text[] not null default '{}',
+    note text not null default '',
+    font_runs jsonb,
+    created_at timestamptz not null default now()
 );
+
 alter table public.mood_logs enable row level security;
-create policy "Users can perform all actions on their own logs" on public.mood_logs for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create index idx_mood_logs_user_timestamp on public.mood_logs (user_id, timestamp desc);
+grant select, insert, update, delete on public.mood_logs to authenticated;
+
+create policy "Users manage their own logs"
+on public.mood_logs
+for all to authenticated
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
+
+create index mood_logs_user_id_key on public.mood_logs (user_id, id);
 ```
 
-2. **配置连接**：在应用中进入 **「数据与安全」** -> **「配置云端数据库连接」**，填入您的 Supabase `API URL` 和 `Anon Key`（公钥）并保存，登录账户即可自动合并本地与云端数据。
+已有日记表可单独运行 `alter table public.mood_logs add column if not exists font_runs jsonb;`，让字体信息与正文分开存储。使用旧表时，新版也能从正文末尾读取字体信息，建议各设备都更新后再编辑混排日记。
 
----
+</details>
 
-## 🛠️ 本地开发与构建 (Development & Build)
+## 本地运行与验证
 
-```bash
-# 1. 安装锁定依赖并校验发布元数据
+使用 Node.js 24，在项目根目录运行以下命令，然后打开 [本地网页](http://127.0.0.1:4289)。
+
+```sh
 npm ci
-npm run verify:release
-
-# 2. 运行本地开发调试 (浏览器打开 http://127.0.0.1:4289)
 npm run serve
-
-# 3. 运行兼容性与端到端测试 (macOS Safari)
-# macOS 本地的桌面及移动 WebKit 验证
-sudo safaridriver --enable
-npm run test:safari
-
-# 使用相同的 Safari 用例验证五种窗口尺寸
-npm run test:compat
-
-# 4. 编译并同步至 Android (需配置 JAVA_HOME 环境变量)
-npm run mobile:sync
-npm run mobile:build:android:debug
-
-# 5. 本地打包 Windows 桌面端安装包 (NSIS Setup & Portable)
-npm run desktop:build:win:x64
 ```
 
-正式版本标签会自动构建 Windows x64/ARM64、Linux x64 与 Android 附件，并在 GitHub Release 中附带 `SHA256SUMS.txt`。
+| 命令 | 用途 |
+| --- | --- |
+| `npm test` | 检查日记数据、备份、离线资源和练习计时等回归用例 |
+| `npm run verify:release` | 核对各端版本号、发布资源和离线配置 |
+| `npm run test:safari` | 在已启用 WebDriver 的 Mac 上，用原生 Safari 检查不同窗口宽度下的主要流程 |
+| `npm run mobile:sync` | 准备网页资源并同步到 Android 工程 |
+| `npm run desktop:build:win:x64` | 构建 Windows x64 安装包与便携版 |
 
----
+## 部署与下载
 
-## 📂 主要项目结构 (Project Structure)
+网页版直接从 `main` 分支的根目录发布到 GitHub Pages。发布新版本时，先在候选分支通过远程 macOS 的原生 Safari 检查，再将同一提交同步到 `main`，并推送与应用版本一致的标签（如 `v1.2.72`）。
 
-* `index.html` - 单页 SPA 核心骨架及多端 DOM 布局
-* `manifest.webmanifest` & `sw.js` - PWA 配置文件与缓存控制服务
-* `css/style.css` - 极简毛玻璃设计系统（镂空按钮、自适应响应布局）
-* `js/app.js` - SPA 核心路由、交互逻辑与模态弹窗系统
-* `js/storage.js` - 本地 LocalStorage 读写与数据去重合并算法
-* `js/breathing.js` & `js/focus.js` - Canvas 粒子波动自适应绘制与番茄钟多轨混音器
-* `js/supabase-service.js` - Supabase 数据库交互与身份鉴权封装
-* `assets/` - 界面图标及高保真自然原声音频文件
+版本标签会触发 Windows x64 / ARM64 安装包与便携版、Linux AppImage 与 deb、Android 调试 APK 与未签名 AAB 的构建。成功后，GitHub Release 会附上这些文件和 `SHA256SUMS.txt`。[构建与发布工作流](.github/workflows/compatibility.yml)

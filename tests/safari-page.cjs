@@ -5,7 +5,7 @@ const { readFileSync } = require("node:fs");
 
 async function openSafari(width, height, release) {
   const errors = [];
-  const html = readFileSync("index.html", "utf8").replace(/https:\/\/cdn.jsdelivr.net\/npm\/ionicons@7.1.0\/[^"]+/g, "/fixture-icons.js")
+  const html = readFileSync("index.html", "utf8")
     .replace("<head>", `<head><script>
       window.testErrors = [];
       addEventListener("error", event => testErrors.push(event.message || event.target?.src || "resource error"), true);
@@ -23,7 +23,11 @@ async function openSafari(width, height, release) {
       const pathname = new URL(req.url, "http://localhost").pathname;
       res.on("finish", () => { if (res.statusCode >= 400 && pathname !== "/favicon.ico") errors.push(res.statusCode + " " + pathname); });
       if (pathname === "/") { res.setHeader("Content-Type","text/html; charset=utf-8"); return res.end(html); }
-      if (pathname === "/fixture-icons.js") { res.setHeader("Content-Type","application/javascript"); return res.end(""); }
+      if (pathname === "/compat-frame") {
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.end(`<!doctype html><meta name="viewport" content="width=device-width"><style>body{margin:0}iframe{display:block;border:0}</style>
+          <iframe id="compat-view" src="/" width="${width}" height="${height}" title="MindSpace test viewport"></iframe>`);
+      }
       res.emit("next");
     }
   ] });
@@ -37,7 +41,13 @@ async function openSafari(width, height, release) {
     driver = await new Builder().disableEnvironmentOverrides().usingServer(await service.start()).forBrowser("safari").build();
     const [dx, dy] = await driver.executeScript("return [outerWidth-innerWidth, outerHeight-innerHeight]");
     await driver.manage().window().setRect({x:0,y:0,width:width+dx,height:height+dy});
-    await driver.get("http://127.0.0.1:"+server.server.address().port+"/");
+    const baseUrl = "http://127.0.0.1:" + server.server.address().port;
+    await driver.get(baseUrl + "/");
+    const measured = await driver.executeScript("return [innerWidth, innerHeight]");
+    if (measured[0] !== width || measured[1] !== height) {
+      await driver.get(baseUrl + "/compat-frame");
+      await driver.switchTo().frame(await driver.findElement(By.id("compat-view")));
+    }
     function locator(by, last = false) {
       const all = () => driver.findElements(by);
       const target = async () => (await all()).at(last ? -1 : 0);
@@ -68,7 +78,7 @@ async function openSafari(width, height, release) {
     }
     return {
       evaluate: fn => driver.executeScript(fn),
-      viewportSize: () => ({width,height}),
+      viewportSize: () => driver.executeScript("return {width: innerWidth, height: innerHeight}"),
       locator: css => locator(By.css(css)),
       byText: (text, tag="*") => locator(By.xpath("//body//"+tag+"[contains(normalize-space(.),'"+text+"') and not(*[contains(normalize-space(.),'"+text+"')])]")),
       xpath: expression => locator(By.xpath(expression)),

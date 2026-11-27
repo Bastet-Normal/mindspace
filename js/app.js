@@ -5,1073 +5,1405 @@
  */
 
 const APP_VERSION = String(window.MINDSPACE_VERSION || "0.0.0");
+const JOURNAL_PAGE_SIZE = 24;
+const JOURNAL_GRAPHEMES = new Intl.Segmenter('zh-CN', { granularity: 'grapheme' });
+const CALENDAR_PAGE_SIZE = 30;
+const SHORT_DATE = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' });
+const LONG_DATE = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
 const RELEASES_URL = "https://github.com/Bastet-Normal/mindspace/releases";
+const WEATHER_ICON_MAP = {
+    sunny: 'sunny-outline', breezy: 'leaf-outline', cloudy: 'cloudy-outline',
+    foggy: 'cloud-outline', rainy: 'rainy-outline', stormy: 'thunderstorm-outline'
+};
 
 // Global App Instance
 const app = {
-    // Auth Cache State
     currentUser: null,
-    authChecked: false,
-    authGateActive: false,
+    overlays: [],
 
-    // Router State
     router: {
         currentView: 'dashboard',
-        
-        /**
-         * Navigate to a view
-         */
-        navigate(viewId) {
-            // Stop breathing session if navigating away
-            if (this.currentView === 'breathing' && viewId !== 'breathing') {
-                MindSpaceBreathing.stop();
-                const startBtn = document.getElementById('start-breath-btn');
-                const stopBtn = document.getElementById('stop-breath-btn');
-                startBtn.classList.remove('hidden');
-                stopBtn.classList.add('hidden');
-            }
+        titles: {
+            dashboard: '今日', weather: '记录心情', breathing: '呼吸练习',
+            focus: '专注与声音', journal: '心情日记', insights: '天气回顾', settings: '设置'
+        },
 
-            this.currentView = viewId;
-            
-            // Toggle active view class in HTML
-            document.querySelectorAll('.app-view').forEach(view => {
-                view.classList.remove('active');
-            });
-            const targetView = document.getElementById(`view-${viewId}`);
-            if (targetView) targetView.classList.add('active');
+        location() {
+            const [view, detail, id] = location.hash.slice(1).split('/');
+            const editId = view === 'weather' && detail === 'edit' && MindSpaceStorage.UUID.test(id) ? id : null;
+            return { view: view || 'dashboard', day: view === 'journal' ? detail : '', editId };
+        },
 
-            // Update bottom nav & sidebar active states in sync
-            document.querySelectorAll('.nav-item, .sidebar-item').forEach(item => {
-                if (item.dataset.view === viewId) {
-                    item.classList.add('active');
-                } else {
-                    item.classList.remove('active');
+        navigate(viewId, { day = '', editId = null, updateHash = true, focus = true } = {}) {
+            if (!Object.hasOwn(this.titles, viewId)) viewId = 'dashboard';
+            if (this.currentView === 'breathing' && viewId !== 'breathing') app.stopBreathing();
+            if (viewId === 'journal') {
+                const journalDate = app.isDayKey(day) ? day : '';
+                if (journalDate !== app.journalDate) {
+                    app.journalDate = journalDate;
+                    app.journalLimit = JOURNAL_PAGE_SIZE;
+                    if (journalDate) app.resetJournalInputs();
                 }
-            });
-
-            // View-specific initializations
-            if (viewId === 'dashboard') {
-                app.renderDashboard();
-            } else if (viewId === 'weather') {
-                app.resetWeatherForm();
-            } else if (viewId === 'journal') {
-                app.renderJournalList();
-            } else if (viewId === 'insights') {
-                app.renderInsights();
-            } else if (viewId === 'settings') {
-                // No specific render needed, just show
             }
-            
-            // Scroll content view back to top
-            document.getElementById('app-content').scrollTop = 0;
+            this.currentView = viewId;
+            document.querySelectorAll('.app-view').forEach(view => {
+                view.classList.toggle('active', view.id === `view-${viewId}`);
+            });
+            document.querySelectorAll('[data-view]').forEach(item => {
+                const mobile = item.classList.contains('nav-item');
+                const activeView = mobile && viewId === 'insights' ? 'journal' : viewId;
+                const selected = item.dataset.view === activeView;
+                item.classList.toggle('active', selected);
+                if (selected) item.setAttribute('aria-current', 'page');
+                else item.removeAttribute('aria-current');
+            });
+            document.getElementById('header-view-title').textContent = this.titles[viewId];
+            document.title = viewId === 'dashboard' ? 'MindSpace' : `${this.titles[viewId]} · MindSpace`;
+            if (viewId === 'weather') app.openEditor(editId, day);
+            else app.refreshCurrentView();
+            app.renderFocusIndicator();
+            let hash = `#${viewId}`;
+            if (viewId === 'journal' && app.journalDate) hash += '/' + app.journalDate;
+            if (viewId === 'weather' && app.editingId) hash += '/edit/' + app.editingId;
+            if (updateHash && location.hash !== hash) location.hash = hash;
+            window.scrollTo(0, 0);
+            const heading = document.querySelector(`#view-${viewId} h1`);
+            heading?.setAttribute('tabindex', '-1');
+            if (focus) heading?.focus({ preventScroll: true });
         }
     },
 
-    // Selected tags in current weather log form
+    weatherVisuals: new Map(),
+    journalFontLoads: new Map(),
+    selectedMoods: [],
+    entryMode: 'now',
+    entryStep: 'setup',
+    entryMoment: null,
     selectedTags: new Set(),
+    editingId: null,
+    editOriginal: null,
+    drafts: new Map(),
+    editingDay: '',
+    journalDate: '',
+    journalLimit: JOURNAL_PAGE_SIZE,
+    insightOffsetDays: 0,
+    focusStatus: null,
 
-    /**
-     * Initialization Function
-     */
-    async init() {
-        const versionElement = document.getElementById('current-app-version');
-        if (versionElement) versionElement.innerText = `v${APP_VERSION}`;
-
-        // Initialize Theme
+    init() {
+        document.getElementById('current-app-version').textContent = `v${APP_VERSION}`;
         this.initTheme();
-
-        // Bind SPA Navigation Click events (bottom nav & desktop sidebar)
-        document.querySelectorAll('.nav-item, .sidebar-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const viewId = item.dataset.view;
-                if (viewId) {
-                    this.router.navigate(viewId);
-                }
-            });
-        });
-
-        // Initialize Breathing Guide
-        MindSpaceBreathing.init(
-            document.getElementById('breath-orb'),
-            document.getElementById('breath-instruction'),
-            document.getElementById('breath-total-time'),
-            document.getElementById('breath-mode-desc'),
-            document.getElementById('breath-particle-canvas')
-        );
-
-        // Initialize Supabase Service
-        if (window.SupabaseService) {
-            window.SupabaseService.init();
-            await this.updateAuthUI().catch((error) => {
-                console.warn('云账户状态检查失败，已继续使用本地模式。', error);
-            });
-        }
-
-        // Bind Events
+        this.journalEditor = new JournalEditor(document.getElementById('journal-editor'), () => {
+            this.updateNoteCount();
+            this.storeDraft();
+        }, font => this.showJournalFont(font));
+        this.refreshJournalFont();
+        this.setDate();
+        this.prepareWeatherVisuals();
         this.bindEvents();
 
-        // Render Initial Dashboard
-        this.renderDashboard();
+        MindSpaceBreathing.init(
+            document.getElementById('breath-stage'),
+            document.getElementById('breath-instruction'),
+            document.getElementById('breath-total-time'),
+            document.getElementById('breath-mode-desc')
+        );
 
-        // Require account login before use when cloud auth is configured.
-        this.enforceStartupAuth();
+        this.setWeatherForm(this.readDraft(null)?.form);
+        this.renderProfileSettings();
+        this.focusStatus = MindSpaceFocusTimer.summary?.();
+        const route = this.router.location();
+        this.router.navigate(route.view, { ...route, updateHash: false, focus: false });
+        window.addEventListener('hashchange', () => {
+            const { view, day, editId } = this.router.location();
+            if (view === this.router.currentView && (view !== 'journal' || (day || '') === this.journalDate) &&
+                (view !== 'weather' || editId === this.editingId)) return;
+            this.router.navigate(view, { day, editId, updateHash: false });
+        });
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                this.setDate();
+                if (this.router.currentView === 'dashboard') this.renderDashboard();
+                if (this.router.currentView === 'insights') this.renderInsights();
+            }
+        });
+        window.addEventListener('storage', event => {
+            if (event.key !== MindSpaceStorage.KEY && event.key !== null) return;
+            if (event.newValue === null) {
+                this.drafts.clear();
+                MindSpaceStorage.clearDraft();
+                this.editingId = null;
+                this.editOriginal = null;
+                this.setWeatherForm();
+                while (this.overlays.length) this.closeOverlay(this.overlays.at(-1).overlay.id);
+                this.router.navigate(this.router.currentView, { focus: false });
+            }
+            MindSpaceStorage.setSyncSession(window.SupabaseService.scopeFor(this.currentUser));
+            this.renderSyncState();
+            this.refreshTheme();
+            this.refreshJournalFont();
+            this.refreshCurrentView();
+        });
+
+        window.SupabaseService.init().then(() => this.updateAuthUI()).catch(error => {
+            this.renderSyncState();
+            console.warn('无法连接云同步，本机功能仍可使用。', error);
+        });
+    },
+
+    setDate() {
+        const date = new Date();
+        const element = document.getElementById('dashboard-date');
+        element.dateTime = MindSpaceStorage.dateKey(date);
+        element.textContent = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' }).format(date);
+    },
+
+    renderProfileSettings() {
+        const input = document.getElementById('user-name');
+        if (input && document.activeElement !== input) input.value = MindSpaceStorage.getSettings().userName;
     },
 
     /**
      * Theme management (supporting dual switches)
      */
     initTheme() {
-        const settings = MindSpaceStorage.getSettings();
         const themeBtn = document.getElementById('theme-toggle');
-        const sidebarThemeBtn = document.getElementById('sidebar-theme-toggle');
         const themeIcon = document.getElementById('theme-icon');
-        const sidebarThemeIcon = document.querySelector('.sidebar-theme-icon');
         
-        // System preference default
-        let activeTheme = settings.theme;
-        if (!activeTheme) {
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            activeTheme = prefersDark ? 'dark' : 'light';
-        }
-
-        const applyTheme = (theme) => {
-            if (theme === 'dark') {
-                document.body.setAttribute('data-theme', 'dark');
-                if (themeIcon) themeIcon.setAttribute('name', 'sunny-outline');
-                if (sidebarThemeIcon) sidebarThemeIcon.setAttribute('name', 'sunny-outline');
-            } else {
-                document.body.removeAttribute('data-theme');
-                if (themeIcon) themeIcon.setAttribute('name', 'moon-outline');
-                if (sidebarThemeIcon) sidebarThemeIcon.setAttribute('name', 'moon-outline');
-            }
+        const system = window.matchMedia('(prefers-color-scheme: dark)');
+        this.refreshTheme = () => {
+            const preferred = MindSpaceStorage.getSettings().theme;
+            document.getElementById('preferred-theme').value = preferred || '';
+            const theme = preferred || (system.matches ? 'dark' : 'light');
+            if (this.currentTheme === theme) return;
+            this.currentTheme = theme;
+            const root = document.documentElement;
+            root.classList.add('theme-switching');
+            requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switching')));
+            root.dataset.theme = theme;
+            themeIcon.setAttribute('name', theme === 'dark' ? 'sunny-outline' : 'moon-outline');
+            document.querySelector('meta[name="theme-color"]').content = getComputedStyle(root).getPropertyValue('--page').trim();
         };
 
         // Apply theme initially
-        applyTheme(activeTheme);
-
-        // Toggle helper
-        const toggleTheme = () => {
-            const currentTheme = document.body.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            
-            applyTheme(newTheme);
-
+        this.refreshTheme();
+        system.addEventListener('change', () => this.refreshTheme());
+        const saveTheme = preference => {
             const updatedSettings = MindSpaceStorage.getSettings();
-            updatedSettings.theme = newTheme;
-            MindSpaceStorage.saveSettings(updatedSettings);
+            updatedSettings.theme = preference;
+            try { MindSpaceStorage.saveSettings(updatedSettings); }
+            catch (error) { this.showToast(error.message); }
+            this.refreshTheme();
         };
-
-        // Bind click events on both buttons
-        if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
-        if (sidebarThemeBtn) sidebarThemeBtn.addEventListener('click', toggleTheme);
+        themeBtn.addEventListener('click', () => saveTheme(this.currentTheme === 'dark' ? 'light' : 'dark'));
+        document.getElementById('preferred-theme').addEventListener('change', event => saveTheme(event.target.value || null));
     },
 
-    /**
-     * Dynamic Greetings & Random comforting quotes on dashboard
-     */
+    renderFocusIndicator() {
+        const indicator = document.getElementById('focus-indicator');
+        const { running, mode, label } = this.focusStatus || {};
+        const visible = running && this.router.currentView !== 'focus';
+        indicator.hidden = !visible;
+        if (!visible) return;
+        document.getElementById('focus-indicator-time').textContent = label;
+        indicator.setAttribute('aria-label', mode === 'break' ? '查看休息计时' : '查看专注计时');
+    },
+
     renderDashboard() {
         const hour = new Date().getHours();
-        const greetingText = document.getElementById('greeting-text');
-        const greetingSub = document.getElementById('greeting-sub');
+        const name = MindSpaceStorage.getSettings().userName;
+        const greeting = hour < 5 || hour >= 23 ? '夜深了'
+            : hour < 12 ? '早上好'
+            : hour < 14 ? '中午好'
+            : hour < 18 ? '下午好'
+            : '晚上好';
+        document.getElementById('greeting-text').textContent = `${greeting}，${name}`;
+        this.renderPracticeTotals();
+        const logs = MindSpaceStorage.getLogs();
+        const entriesByDay = this.logsByDay(logs);
+        const today = MindSpaceStorage.dateKey();
+        this.renderTodayWeather(today, entriesByDay.get(today) ?? []);
 
-        // Dynamic Chinese Greeting
-        if (hour >= 5 && hour < 12) {
-            greetingText.innerText = "早上好，旅人";
-            greetingSub.innerText = "朝阳升起，今天也是崭新的一天。慢慢呼吸，开启轻松的一天吧。";
-        } else if (hour >= 12 && hour < 14) {
-            greetingText.innerText = "中午好，旅人";
-            greetingSub.innerText = "午间微歇。喝杯水，放松双肩，让思想也打个盹。";
-        } else if (hour >= 14 && hour < 18) {
-            greetingText.innerText = "下午好，旅人";
-            greetingSub.innerText = "日光倾斜。若有些许疲倦，不妨允许自己放慢一会儿脚步。";
-        } else {
-            greetingText.innerText = "夜深了, 旅人";
-            greetingSub.innerText = "把今天所有的酸甜苦辣都卸下吧。被窝很暖，心空也很安全，晚安。";
-        }
+        const recent = document.getElementById('journal-preview-content');
+        const note = logs.find(log => log.note);
+        recent.closest('.journal-preview-card').hidden = !note;
+        recent.innerHTML = note
+            ? `<button type="button" class="preview-entry" aria-label="查看${MindSpaceStorage.formatDate(note.timestamp)}的随笔">
+                    ${this.moodChips(note.weather)}
+                    <span class="preview-entry-copy"><span class="journal-preview-date">${MindSpaceStorage.formatDate(note.timestamp)}　${MindSpaceStorage.moodName(note.weather)}</span>
+                    <span class="journal-preview-text">${escapeHTML(note.note)}</span></span>
+                    <ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+                </button>`
+            : '';
+        if (note) recent.querySelector('button').onclick = () => this.openJournalDetail(note);
 
-        // Quote fetching
-        const quote = MindSpaceQuotes.getRandomQuote();
-        document.getElementById('quote-content').innerText = `"${quote.text}"`;
-        document.getElementById('quote-author').innerText = `— ${quote.author}`;
-
-        // 1. Render Mindfulness Rings
-        this.renderMindfulnessRings();
-
-        // 2. Render Today's Mood Widget
-        this.renderTodayMoodWidget();
-
-        // 3. Render Weekly Climate Outlook
-        this.renderWeeklyClimateOutlook();
-
-        // 4. Render Latest Journal Preview
-        this.renderLatestJournalPreview();
+        const week = this.recentDates(7);
+        const activeDays = week.filter(date => entriesByDay.has(MindSpaceStorage.dateKey(date))).length;
+        const trend = document.getElementById('trends-chart-container');
+        trend.replaceChildren(...week.map((date, index) => {
+            const day = MindSpaceStorage.dateKey(date);
+            const entries = entriesByDay.get(day) ?? [];
+            const weights = MindSpaceStorage.moodWeights(entries);
+            const label = index === 6 ? '今天' : `周${'日一二三四五六'[date.getDay()]}`;
+            const description = weights.length ? this.weatherWeightLabel(weights) : '未记录';
+            const cell = document.createElement('button');
+            cell.type = 'button';
+            cell.className = `week-day${index === 6 ? ' is-today' : ''}`;
+            const summary = weights.length
+                ? this.dayWeatherSummary(weights, this.leadingMoods(weights))
+                : '<span class="week-unlogged" aria-hidden="true"></span>';
+            cell.innerHTML = `<span class="week-label">${label}</span><span class="week-date">${date.getDate()}</span>${summary}`;
+            if (index === 6) cell.setAttribute('aria-current', 'date');
+            if (entries.length) cell.title = description;
+            cell.setAttribute('aria-label', `${SHORT_DATE.format(date)}，${label}，${description}，${entries.length ? '查看日记' : '记录心情'}`);
+            cell.onclick = () => this.openWeatherDay(day, Boolean(entries.length));
+            return cell;
+        }));
+        const caption = document.querySelector('.week-caption') || Object.assign(document.createElement('p'), { className: 'week-caption' });
+        caption.textContent = activeDays ? `近七天已记 ${activeDays} 天` : '点选日期，可以补记那天的心情。';
+        document.querySelector('.weekly-trends-card').append(caption);
     },
 
-    /**
-     * Render SVG Mindfulness Rings on Dashboard
-     */
-    renderMindfulnessRings() {
+    renderTodayWeather(day, entries) {
+        const weather = document.getElementById('widget-today-weather');
+        const scene = document.querySelector('.welcome-card .lake-window');
+        const weights = MindSpaceStorage.moodWeights(entries);
+        const leaders = this.leadingMoods(weights);
+        scene.dataset.sky = leaders.length === 1 ? leaders[0] : '';
+        if (!weights.length) {
+            const draft = this.readDraft(null)?.form;
+            weather.innerHTML = `
+                <div class="dashboard-heading"><h2>此刻心情</h2>
+                    <button type="button" class="text-btn" data-go="weather">${draft?.weather || draft?.note ? '继续记录' : '记录心情'}<ion-icon name="chevron-forward-outline"></ion-icon></button></div>
+                <div class="quick-weather-list">${Object.entries(MindSpaceStorage.WEATHER_MAP).map(([key, {name}]) =>
+                    `<button type="button" class="quick-weather ${key}" data-pick="${key}" aria-label="选择${name}，记录心情">
+                        ${this.weatherChip(key, true)}<span>${name}</span></button>`).join('')}</div>`;
+            return;
+        }
+
+        weather.innerHTML = `
+            <div class="dashboard-heading"><h2>今日天气</h2>
+                <button type="button" class="text-btn" data-go="weather"><ion-icon name="add-outline"></ion-icon>再记一条</button></div>
+            ${this.weatherWeightBar(weights, 'today-weather-bar')}
+            <div class="today-weather-summary">
+                ${this.weatherWeightScores(weights)}
+                <button type="button" class="text-btn today-view-entries">查看今日 ${entries.length} 篇日记<ion-icon name="chevron-forward-outline"></ion-icon></button>
+            </div>`;
+        weather.querySelector('.today-view-entries').onclick = () => this.openWeatherDay(day, true);
+    },
+
+    openWeatherDay(day, hasEntries) {
+        if (hasEntries) return this.router.navigate('journal', { day });
+        this.router.navigate('weather');
+        const isBackfill = day !== MindSpaceStorage.dateKey();
+        this.setEntryFields(isBackfill ? day : '', isBackfill ? '12:00' : '');
+        this.setEntryMode(isBackfill ? 'past' : 'now');
+        this.entryMoment = null;
+        this.setEntryStep('setup');
+        this.storeDraft();
+    },
+
+    renderPracticeTotals() {
         const stats = MindSpaceStorage.getTodayStats();
-        
-        // Goals: Breathing 10 mins (600s), Focus 50 mins (3000s)
-        const breathingGoal = 10 * 60;
-        const focusGoal = 50 * 60;
-
-        const breathingPercent = Math.min(100, (stats.breathingSeconds / breathingGoal) * 100);
-        const focusPercent = Math.min(100, (stats.focusSeconds / focusGoal) * 100);
-
-        // Update progress circles
-        const focusCircumference = 345.57; // 2 * PI * 55
-        const breathingCircumference = 251.32; // 2 * PI * 40
-
-        const focusCircle = document.querySelector('.focus-ring-progress');
-        const breathingCircle = document.querySelector('.breathing-ring-progress');
-
-        if (focusCircle) {
-            const offset = focusCircumference * (1 - focusPercent / 100);
-            focusCircle.style.strokeDashoffset = offset.toFixed(2);
-        }
-        if (breathingCircle) {
-            const offset = breathingCircumference * (1 - breathingPercent / 100);
-            breathingCircle.style.strokeDashoffset = offset.toFixed(2);
-        }
-
-        // Update legend texts
-        const focusText = document.getElementById('focus-ring-text');
-        const breathingText = document.getElementById('breathing-ring-text');
-
-        if (focusText) {
-            const currentMins = (stats.focusSeconds / 60).toFixed(1);
-            focusText.innerText = `⏱️ 专注: ${currentMins} / 50分钟`;
-        }
-        if (breathingText) {
-            const currentMins = (stats.breathingSeconds / 60).toFixed(1);
-            breathingText.innerText = `🧘 呼吸: ${currentMins} / 10分钟`;
+        for (const [key, seconds] of [['focus', stats.focusSeconds], ['breathing', stats.breathingSeconds]]) {
+            const progress = document.getElementById(key + '-progress');
+            progress.value = seconds;
+            progress.hidden = !seconds;
+            const duration = seconds < 60 && seconds > 0 ? seconds + ' 秒' : Math.floor(seconds / 60) + ' 分钟';
+            const hint = key === 'focus' ? '计时或听环境声' : '跟随节奏呼吸';
+            document.getElementById(key + '-ring-text').textContent = seconds ? '今日 ' + duration : hint;
         }
     },
 
-    /**
-     * Render Today's Mood status Widget
-     */
-    renderTodayMoodWidget() {
-        const logs = MindSpaceStorage.getLogs();
-        const widgetContainer = document.getElementById('widget-today-weather');
-        if (!widgetContainer) return;
-
-        const todayDateStr = new Date().toDateString();
-        const todayLog = logs.find(log => new Date(log.timestamp).toDateString() === todayDateStr);
-
-        if (todayLog) {
-            const weatherConfig = MindSpaceStorage.WEATHER_MAP[todayLog.weather] || { name: '未知', emoji: '✨' };
-            const noteText = todayLog.note ? todayLog.note : '未记录絮语';
-            
-            // Build dynamic mini icon structure
-            let visualHTML = '';
-            if (todayLog.weather === 'sunny') {
-                visualHTML = `<div class="weather-visual sunny-anim"><ion-icon name="sunny" class="sun-core"></ion-icon><div class="sun-halo"></div></div>`;
-            } else if (todayLog.weather === 'breezy') {
-                visualHTML = `<div class="weather-visual breezy-anim"><ion-icon name="leaf" class="leaf-icon"></ion-icon><div class="wind-trail wind-trail-1"></div><div class="wind-trail wind-trail-2"></div></div>`;
-            } else if (todayLog.weather === 'cloudy') {
-                visualHTML = `<div class="weather-visual cloudy-anim"><ion-icon name="cloudy" class="cloud-front"></ion-icon><ion-icon name="cloud" class="cloud-back"></ion-icon></div>`;
-            } else if (todayLog.weather === 'foggy') {
-                visualHTML = `<div class="weather-visual foggy-anim"><ion-icon name="cloud" class="fog-cloud"></ion-icon><div class="fog-mist fog-mist-1"></div><div class="fog-mist fog-mist-2"></div></div>`;
-            } else if (todayLog.weather === 'rainy') {
-                visualHTML = `<div class="weather-visual rainy-anim"><ion-icon name="rainy" class="rain-cloud"></ion-icon><div class="raindrop raindrop-1"></div><div class="raindrop raindrop-2"></div><div class="raindrop raindrop-3"></div></div>`;
-            } else if (todayLog.weather === 'stormy') {
-                visualHTML = `<div class="weather-visual stormy-anim"><ion-icon name="thunderstorm" class="storm-cloud"></ion-icon><div class="lightning-bolt"><ion-icon name="flash"></ion-icon></div><div class="raindrop raindrop-1"></div><div class="raindrop raindrop-2"></div></div>`;
-            } else {
-                visualHTML = `<span style="font-size: 1.8rem;">${weatherConfig.emoji}</span>`;
+    prepareWeatherVisuals() {
+        for (const option of document.querySelectorAll('.weather-option[data-weather]')) {
+            const source = option.querySelector('.weather-visual');
+            if (!source) continue;
+            source.setAttribute('aria-hidden', 'true');
+            const visual = document.createElement('span');
+            visual.className = source.className;
+            for (const child of source.children) {
+                if (child.localName === 'div') {
+                    const decoration = document.createElement('span');
+                    decoration.className = child.className;
+                    visual.append(decoration);
+                } else visual.append(child.cloneNode(true));
             }
-
-            widgetContainer.innerHTML = `
-                <h4><ion-icon name="cloudy-outline"></ion-icon>今日内心天气</h4>
-                <div class="logged-mood-container">
-                    <div class="logged-mood-display">
-                        <div class="logged-mood-icon-wrapper" data-weather="${todayLog.weather}">
-                            ${visualHTML}
-                        </div>
-                        <div class="logged-mood-info">
-                            <div class="logged-mood-name">${weatherConfig.name}</div>
-                            <div class="logged-mood-note-preview">${escapeHTML(noteText)}</div>
-                        </div>
-                    </div>
-                    <button class="secondary-btn small-btn" onclick="app.router.navigate('weather')" style="width: auto; font-size: 0.75rem; padding: 4px 12px;">重新记录</button>
-                </div>
-            `;
-        } else {
-            widgetContainer.innerHTML = `
-                <h4><ion-icon name="cloudy-outline"></ion-icon>今日内心天气</h4>
-                <div class="widget-placeholder">
-                    <div class="placeholder-content">
-                        <ion-icon name="cloudy-night-outline" class="placeholder-icon"></ion-icon>
-                        <p>今天还没有记录内心天气哦</p>
-                    </div>
-                    <button class="primary-btn small-btn" style="flex-shrink: 0;" onclick="app.router.navigate('weather')">去记录</button>
-                </div>
-            `;
+            this.weatherVisuals.set(option.dataset.weather, visual.outerHTML);
         }
     },
 
-    /**
-     * Render Weekly Mood trends chart
-     */
-    renderWeeklyClimateOutlook() {
-        const trendsContainer = document.getElementById('trends-chart-container');
-        if (!trendsContainer) return;
+    weatherChip(weather, animated = false) {
+        const visual = this.weatherVisuals.get(weather);
+        if (!visual) return '<span class="weather-chip" aria-hidden="true">·</span>';
+        const className = animated ? 'weather-chip weather-chip--animated' : 'weather-chip';
+        return `<span class="${className}" data-weather="${weather}" aria-hidden="true">${visual}</span>`;
+    },
 
-        const logs = MindSpaceStorage.getLogs();
-        if (logs.length === 0) {
-            trendsContainer.innerHTML = `<div class="chart-empty">本周心空尚未留下气象痕迹，待你落笔描摹。</div>`;
-            return;
-        }
+    moodChips(weather, animated = false) {
+        const moods = MindSpaceStorage.moods(weather);
+        if (moods.length < 2) return this.weatherChip(moods[0], animated);
+        return `<span class="mood-pair" aria-hidden="true">${moods.map(key => this.weatherChip(key, animated)).join('')}</span>`;
+    },
 
-        const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-        const weeklyStats = [];
-        
-        for (let i = 6; i >= 0; i--) {
-            const targetDate = new Date();
-            targetDate.setDate(targetDate.getDate() - i);
-            const targetDateStr = targetDate.toDateString();
-            
-            const logsOnDay = logs.filter(log => new Date(log.timestamp).toDateString() === targetDateStr);
-            const mood = logsOnDay.length > 0 ? logsOnDay[0].weather : null;
-            weeklyStats.push({
-                dayLabel: targetDate.toDateString() === new Date().toDateString() ? '今天' : dayNames[targetDate.getDay()],
-                mood: mood
-            });
-        }
+    leadingMoods(weights) {
+        const highest = weights[0]?.[1];
+        return weights.filter(([, weight]) => weight === highest).map(([key]) => key);
+    },
 
-        const moodWeights = {
-            sunny: 5,
-            breezy: 4,
-            cloudy: 3,
-            foggy: 2.5,
-            rainy: 2,
-            stormy: 1
+    weatherWeightLabel(weights) {
+        return weights.map(([key, weight]) => `${MindSpaceStorage.WEATHER_MAP[key].name} ${weight} 分`).join('、');
+    },
+
+    weatherWeightBar(weights, className) {
+        return `<span class="weather-weight-bar ${className}" aria-hidden="true">${weights.map(([key, weight]) =>
+            `<span data-weather="${key}" style="flex-grow:${weight}"></span>`).join('')}</span>`;
+    },
+
+    weatherWeightScores(weights) {
+        return `<ul class="weather-weight-scores" role="list">${weights.map(([key, weight]) =>
+            `<li>${this.weatherChip(key)} <span>${MindSpaceStorage.WEATHER_MAP[key].name}</span> <span class="weather-weight-score">${weight} 分</span></li>`).join('')}</ul>`;
+    },
+
+    dayWeatherSummary(weights, leaders) {
+        const icons = leaders.length <= 2 ? this.moodChips(leaders) : '';
+        return `<span class="day-weather-summary" aria-hidden="true"><span class="day-weather-icons">${icons}</span>
+            ${this.weatherWeightBar(weights, 'day-weather-bar')}</span>`;
+    },
+
+    recentDates(length, offset = 0) {
+        const now = new Date();
+        return Array.from({ length }, (_, index) => {
+            const date = new Date(now);
+            date.setDate(date.getDate() + index - length + 1 - offset);
+            return date;
+        });
+    },
+
+    readWeatherForm() {
+        const day = document.getElementById('entry-date').value.replaceAll('/', '-');
+        const time = document.getElementById('entry-time').value;
+        return {
+            weather: this.selectedMoods.join(','),
+            tags: [...this.selectedTags],
+            ...this.journalEditor.read(),
+            entryMode: this.entryMode,
+            entryStep: this.entryStep,
+            entryMoment: this.entryMoment,
+            recordedAt: day || time ? `${day}T${time}` : ''
         };
+    },
 
-        let chartHTML = '';
-        weeklyStats.forEach(day => {
-            const emoji = day.mood ? (MindSpaceStorage.WEATHER_MAP[day.mood]?.emoji || '✨') : '';
-            const weight = day.mood ? moodWeights[day.mood] : 0;
-            const barHeightPercent = day.mood ? (weight / 5) * 100 : 0;
-            
-            chartHTML += `
-                <div class="chart-bar-wrapper">
-                    <span class="chart-bar-emoji">${emoji || '·'}</span>
-                    <div class="chart-bar-track">
-                        <div class="chart-bar-fill" style="height: ${barHeightPercent}%; ${day.mood ? `background: var(--weather-${day.mood}-text, var(--accent-color));` : ''}"></div>
-                    </div>
-                    <span class="chart-bar-label">${day.dayLabel}</span>
-                </div>
-            `;
+    setWeatherForm(draft = {}) {
+        this.selectedMoods = MindSpaceStorage.moods(draft.weather);
+        document.querySelectorAll('input[name="selected-weather"]').forEach(choice => {
+            choice.checked = this.selectedMoods.includes(choice.value);
         });
-
-        trendsContainer.innerHTML = chartHTML;
+        this.selectedTags = new Set(Array.isArray(draft.tags) ? draft.tags : []);
+        this.journalEditor.load(draft, MindSpaceStorage.getSettings().journalFont || 'system');
+        this.loadEntryFonts(draft.fontRuns);
+        const [day = '', time = ''] = (typeof draft.recordedAt === 'string' ? draft.recordedAt : '').split('T');
+        this.setEntryFields(day, time);
+        this.setEntryMode(draft.entryMode ?? (day || time ? 'past' : 'now'));
+        const moment = draft.entryMoment;
+        this.entryMoment = Number.isSafeInteger(moment) && moment >= 0 && moment <= 8640000000000000 ? moment : null;
+        this.setEntryStep(this.entryMoment !== null && this.selectedMoods.length && draft.entryStep !== 'setup' ? 'writing' : 'setup');
+        document.getElementById('custom-tag-input').value = '';
+        document.getElementById('entry-setup-status').textContent = '';
+        document.getElementById('weather-status').textContent = '';
+        this.renderWeatherForm();
     },
 
-    /**
-     * Render Latest Journal Note preview on Dashboard
-     */
-    renderLatestJournalPreview() {
-        const previewContainer = document.getElementById('journal-preview-content');
-        if (!previewContainer) return;
-
-        const logs = MindSpaceStorage.getLogs();
-        const latestWithNote = logs.find(log => log.note && log.note.trim().length > 0);
-
-        if (latestWithNote) {
-            const formattedDate = MindSpaceStorage.formatDate(latestWithNote.timestamp).split(' ')[0];
-            const weatherInfo = MindSpaceStorage.WEATHER_MAP[latestWithNote.weather] || { name: latestWithNote.weather, emoji: '✨' };
-            const previewText = latestWithNote.note;
-            
-            previewContainer.innerHTML = `
-                <div class="journal-preview-header">
-                    <span class="journal-preview-date">${formattedDate}</span>
-                    <span class="journal-preview-tag">${weatherInfo.emoji} ${weatherInfo.name}</span>
-                </div>
-                <p class="journal-preview-text">${escapeHTML(previewText)}</p>
-                <div style="text-align: right; margin-top: 8px;">
-                    <a href="javascript:void(0)" onclick="app.router.navigate('journal')" style="font-size: 0.75rem; color: var(--accent-color); text-decoration: none; font-weight: 500;">查看全部随笔 &rarr;</a>
-                </div>
-            `;
-        } else {
-            previewContainer.innerHTML = `
-                <div style="display: flex; align-items: center; justify-content: space-between; height: 100%;">
-                    <p class="empty-preview" style="margin: 0; text-align: left;">写下今日第一声内心絮语，留存温润心迹。</p>
-                    <button class="primary-btn small-btn" onclick="app.router.navigate('weather')" style="width: auto; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px var(--accent-glow);">
-                        <ion-icon name="create-outline"></ion-icon>
-                        <span>写随笔</span>
-                    </button>
-                </div>
-            `;
-        }
+    setEntryStep(step) {
+        this.entryStep = step;
+        const writing = step === 'writing';
+        document.getElementById('view-weather').dataset.entryStep = step;
+        document.querySelector('.entry-page-title').classList.toggle('visually-hidden', writing);
+        document.getElementById('entry-setup').hidden = writing;
+        document.getElementById('entry-writing').hidden = !writing;
+        if (!writing) return;
+        const time = document.getElementById('entry-summary-time');
+        time.dateTime = new Date(this.entryMoment).toISOString();
+        time.textContent = MindSpaceStorage.formatDate(this.entryMoment);
+        document.getElementById('entry-summary-moods').innerHTML = this.selectedMoods.map(mood =>
+            `<span class="entry-summary-mood">${this.weatherChip(mood)}${MindSpaceStorage.WEATHER_MAP[mood].name}</span>`
+        ).join('');
     },
 
-    /**
-     * Reset Weather & Mood logs input fields
-     */
-    resetWeatherForm() {
-        this.selectedTags.clear();
-        
-        // Reset radio
-        const firstRadio = document.querySelector('input[name="selected-weather"]');
-        if (firstRadio) {
-            firstRadio.checked = true;
-            const viewWeather = document.getElementById('view-weather');
-            if (viewWeather) {
-                viewWeather.setAttribute('data-active-weather', firstRadio.value);
-            }
-        }
-
-        // Reset note textarea
-        document.getElementById('mood-note').value = '';
-
-        // Render tags list
-        this.renderTagsSelector();
+    updateNoteCount() {
+        const note = document.getElementById('mood-note');
+        const counter = document.getElementById('mood-note-count');
+        if (!note || !counter) return;
+        counter.textContent = `${this.journalEditor.length.toLocaleString('zh-CN')} / 12,000`;
     },
 
-    /**
-     * Render tag pills in mood logger
-     */
-    renderTagsSelector() {
-        const settings = MindSpaceStorage.getSettings();
-        const tagsContainer = document.getElementById('mood-tags-list');
-        tagsContainer.innerHTML = '';
-
-        settings.customTags.forEach(tag => {
-            const pill = document.createElement('button');
-            pill.className = 'mood-tag';
-            if (this.selectedTags.has(tag)) {
-                pill.classList.add('selected');
-            }
-            pill.innerText = tag;
-            pill.addEventListener('click', () => {
-                if (this.selectedTags.has(tag)) {
-                    this.selectedTags.delete(tag);
-                    pill.classList.remove('selected');
-                } else {
-                    this.selectedTags.add(tag);
-                    pill.classList.add('selected');
-                }
-            });
-            tagsContainer.appendChild(pill);
-        });
+    storeDraft() {
+        this.updateTagSummary();
+        const key = this.draftKey(this.editingId);
+        const draft = { form: this.readWeatherForm(), original: this.editOriginal, day: this.editingDay };
+        this.drafts.set(key, draft);
+        try { sessionStorage.setItem(key, JSON.stringify(draft)); }
+        catch { /* Navigation still retains this tab's in-memory draft. */ }
     },
 
-    /**
-     * Render the Journal view list
-     */
-    renderJournalList() {
-        const logs = MindSpaceStorage.getLogs();
-        const searchVal = document.getElementById('journal-search').value.toLowerCase().trim();
-        const journalList = document.getElementById('journal-list');
-        const journalEmpty = document.getElementById('journal-empty');
+    draftKey(id) {
+        return id ? 'mindspace_weather_edit:' + id : 'mindspace_weather_draft';
+    },
 
-        journalList.innerHTML = '';
+    readDraft(id) {
+        const key = this.draftKey(id);
+        if (this.drafts.has(key)) return this.drafts.get(key);
+        try {
+            const draft = JSON.parse(sessionStorage.getItem(key));
+            if (draft?.form) return draft;
+            if (!id && draft) return { form: draft }; // v1.2.3 new-entry drafts
+        } catch { /* An unavailable draft does not block recording. */ }
+        return null;
+    },
 
-        // Filter logs
-        const filteredLogs = logs.filter(log => {
-            if (!searchVal) return true;
-
-            const weatherInfo = MindSpaceStorage.WEATHER_MAP[log.weather] || { name: '', emoji: '' };
-            const weatherMatch = weatherInfo.name.toLowerCase().includes(searchVal);
-            const tagMatch = log.tags.some(tag => tag.toLowerCase().includes(searchVal));
-            const noteMatch = log.note.toLowerCase().includes(searchVal);
-
-            return weatherMatch || tagMatch || noteMatch;
-        });
-
-        if (filteredLogs.length === 0) {
-            journalEmpty.classList.remove('hidden');
-            journalList.classList.add('hidden');
+    openEditor(id, day) {
+        if (id === this.editingId) {
+            this.renderWeatherForm();
             return;
         }
-
-        journalEmpty.classList.add('hidden');
-        journalList.classList.remove('hidden');
-
-        // Create cards
-        filteredLogs.forEach(log => {
-            const card = document.createElement('div');
-            card.className = `journal-card card ${log.weather}`;
-            
-            const weatherInfo = MindSpaceStorage.WEATHER_MAP[log.weather] || { name: log.weather, emoji: '✨' };
-            const timeStr = MindSpaceStorage.formatDate(log.timestamp);
-
-            // Tags HTML
-            let tagsHtml = '';
-            if (log.tags && log.tags.length > 0) {
-                tagsHtml = `<div class="journal-tags">` + 
-                    log.tags.map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('') + 
-                    `</div>`;
-            }
-
-            // Note preview HTML
-            const notePreview = log.note ? `<p class="journal-note-preview">${escapeHTML(log.note)}</p>` : `<p class="journal-note-preview" style="font-style: italic; opacity: 0.6;">(记录了天气状态)</p>`;
-
-            card.innerHTML = `
-                <div class="journal-card-body">
-                    <div class="journal-card-header">
-                        <div class="journal-weather-info">
-                            <span class="journal-weather-dot"></span>
-                            <span class="journal-weather-name">${weatherInfo.emoji} ${weatherInfo.name}</span>
-                        </div>
-                        <span class="journal-time">${timeStr}</span>
-                    </div>
-                    ${tagsHtml}
-                    ${notePreview}
-                </div>
-                <button class="journal-delete-btn" title="删除记录" onclick="event.stopPropagation(); app.confirmDeleteLog('${log.id}')">
-                    <ion-icon name="trash-outline"></ion-icon>
-                </button>
-            `;
-
-            // Click card to open modal detail
-            card.addEventListener('click', () => {
-                app.openJournalDetail(log);
-            });
-
-            journalList.appendChild(card);
-        });
-    },
-
-    /**
-     * Open details modal for a single journal entry
-     */
-    openJournalDetail(log) {
-        const weatherInfo = MindSpaceStorage.WEATHER_MAP[log.weather] || { name: log.weather, emoji: '✨' };
-        const timeStr = MindSpaceStorage.formatDate(log.timestamp);
-        
-        let tagsHtml = '';
-        if (log.tags && log.tags.length > 0) {
-            tagsHtml = `<div class="journal-tags" style="margin-bottom: 12px;">` + 
-                log.tags.map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('') + 
-                `</div>`;
+        const draft = this.readDraft(id);
+        const original = id && (MindSpaceStorage.normalizeLog(draft?.original) || MindSpaceStorage.getLogs().find(log => log.id === id));
+        if (id && (!original || original.id !== id)) {
+            this.showToast('这条记录已移除，可以写一条新记录。');
+            id = null;
         }
-
-        const noteHtml = log.note ? 
-            `<div class="modal-diary-text">${escapeHTML(log.note)}</div>` : 
-            `<p style="font-style: italic; color: var(--text-muted);">本条随笔未记录文字。</p>`;
-
-        const bodyHtml = `
-            <div style="margin-bottom: 10px; font-size: 0.85rem; color: var(--text-muted); display:flex; justify-content:space-between;">
-                <span>内心天气: <strong>${weatherInfo.emoji} ${weatherInfo.name}</strong></span>
-                <span>时间: ${timeStr}</span>
-            </div>
-            ${tagsHtml}
-            ${noteHtml}
-        `;
-
-        this.showModal('随笔详情', bodyHtml, [
-            { text: '关闭', class: 'secondary-btn', onClick: () => this.hideModal() }
-        ]);
+        this.editingId = id;
+        this.editOriginal = id ? original : null;
+        this.editingDay = id ? day || draft?.day || '' : '';
+        const form = id ? draft?.form || { ...original, entryMoment: original.timestamp, recordedAt: this.localMinute(original.timestamp) } : this.readDraft(null)?.form;
+        this.setWeatherForm(form);
+        if (id) this.storeDraft();
     },
 
-    /**
-     * Delete log helper with confirmation
-     */
-    confirmDeleteLog(id) {
-        this.showModal('删除确认', '确定要删除这条心声记录吗？删除后将无法恢复，不过它仍然是您经历过的一部分。', [
-            { text: '取消', class: 'secondary-btn', onClick: () => this.hideModal() },
-            { text: '确定删除', class: 'danger-btn', onClick: async () => {
-                await MindSpaceStorage.deleteLog(id);
-                this.hideModal();
-                this.renderJournalList();
+    localMinute(timestamp) {
+        return MindSpaceStorage.formatDate(timestamp).replace(' ', 'T');
+    },
+
+    setEntryMode(mode) {
+        this.entryMode = mode === 'past' ? 'past' : 'now';
+        document.querySelectorAll('[data-entry-mode]').forEach(button => {
+            button.setAttribute('aria-pressed', String(button.dataset.entryMode === this.entryMode));
+        });
+        const pastTime = document.getElementById('entry-past-time');
+        pastTime.hidden = this.entryMode !== 'past';
+        pastTime.querySelectorAll('[aria-invalid]').forEach(field => field.removeAttribute('aria-invalid'));
+        document.getElementById('entry-time-status').textContent = '';
+    },
+
+    setEntryFields(day, time) {
+        const dateField = document.getElementById('entry-date');
+        const timeField = document.getElementById('entry-time');
+        dateField.value = day;
+        timeField.value = time.normalize('NFKC').trim().replace(/^(\d):?(\d{2})$/, '0$1:$2');
+        this.updateEntryMask(dateField);
+        this.updateEntryMask(timeField);
+    },
+
+    updateEntryMask(field) {
+        const mask = field.dataset.entryMask;
+        const raw = field.value.normalize('NFKC');
+        const shortHour = mask === 'HH:MM' && /^\d:\d{0,2}$/.test(raw);
+        const digits = (shortHour ? '0' + raw : raw).replace(/\D/g, '');
+        const selectionStart = field.selectionStart;
+        const offset = raw.slice(0, selectionStart).replace(/\D/g, '').length;
+        const digitsBeforeCaret = offset + (shortHour && offset ? 1 : 0);
+        let digitIndex = 0;
+        let formatted = '';
+        for (const character of mask) {
+            if (/[A-Z]/.test(character)) {
+                if (digitIndex === digits.length) break;
+                formatted += digits[digitIndex++];
+            } else {
+                formatted += character;
+            }
+        }
+        if (field.value !== formatted) {
+            field.value = formatted;
+            if (document.activeElement === field) {
+                let caret = 0;
+                let digitsSeen = 0;
+                while (caret < formatted.length && (digitsSeen < digitsBeforeCaret || /\D/.test(formatted[caret]))) {
+                    if (/\d/.test(formatted[caret])) digitsSeen++;
+                    caret++;
+                }
+                field.setSelectionRange(caret, caret);
+            }
+        }
+        const guide = field.nextElementSibling;
+        guide.firstElementChild.textContent = formatted;
+        guide.lastElementChild.textContent = mask.slice(formatted.length);
+    },
+
+    entryTimestamp() {
+        if (this.entryMode === 'now') return this.entryMoment ?? Date.now();
+        const day = document.getElementById('entry-date');
+        const clock = document.getElementById('entry-time');
+        const invalid = (field, message) => {
+            field.setAttribute('aria-invalid', 'true');
+            field.focus();
+            throw new Error(message);
+        };
+        const date = day.value.replaceAll('/', '-');
+        if (!MindSpaceStorage.DATE.test(date)) invalid(day, '请输入完整日期，例如 2006/11/27。');
+        const dateOnly = new Date(`${date}T00:00:00Z`);
+        if (date < '1970-01-01' || !Number.isFinite(dateOnly.getTime()) || dateOnly.toISOString().slice(0, 10) !== date) {
+            invalid(day, '请输入有效日期，最早可补记 1970/01/01。');
+        }
+        const parts = clock.value.match(/^(\d{2}):(\d{2})$/);
+        if (!parts) invalid(clock, '请输入四位数字，例如 1230。');
+        if (Number(parts[1]) > 23 || Number(parts[2]) > 59) invalid(clock, '时间应在 00:00 到 23:59 之间。');
+        const value = `${date}T${clock.value}`;
+        const original = this.editOriginal;
+        const unchanged = original && value === this.localMinute(original.timestamp);
+        const timestamp = unchanged ? original.timestamp : new Date(value).getTime();
+        if (!unchanged) {
+            if (date > MindSpaceStorage.dateKey()) invalid(day, '补记日期不能晚于今天。');
+            if (!Number.isFinite(timestamp) || timestamp < 0 || this.localMinute(timestamp) !== value) {
+                invalid(clock, '这个时间在所选日期无效，请换一个时间。');
+            }
+            if (timestamp > Date.now()) invalid(clock, '补记时间不能晚于现在。');
+        }
+        day.removeAttribute('aria-invalid');
+        clock.removeAttribute('aria-invalid');
+        return timestamp;
+    },
+
+    loadJournalFont(button) {
+        const { fontFamily, fontSource } = button.dataset;
+        if (!this.journalFontLoads.has(fontFamily)) {
+            const load = (async () => {
+                const url = new URL(fontSource, document.baseURI);
+                let source = `url("${url.href}")`;
+                if (location.protocol !== 'file:') {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error('Font unavailable');
+                    source = await response.arrayBuffer();
+                }
+                document.fonts.add(await new FontFace(fontFamily, source).load());
+            })();
+            this.journalFontLoads.set(fontFamily, load);
+            load.catch(() => this.journalFontLoads.delete(fontFamily));
+        }
+        return this.journalFontLoads.get(fontFamily);
+    },
+
+    loadEntryFonts(runs = []) {
+        const fonts = new Set(runs.map(run => run.font));
+        for (const button of document.querySelectorAll('[data-font-source]')) {
+            if (fonts.has(button.dataset.fontChoice)) this.loadJournalFont(button).catch(() => {});
+        }
+    },
+
+    showJournalFont(font) {
+        const label = document.getElementById('font-summary');
+        const option = font && document.querySelector(`[data-font-choice="${font}"]`);
+        label.textContent = option ? option.dataset.fontLabel || option.textContent : '混合字体';
+        label.className = font ? `ql-font-${font}` : '';
+        for (const button of document.querySelectorAll('#font-details [data-font-choice]')) {
+            button.setAttribute('aria-pressed', String(button === option));
+        }
+    },
+
+    refreshJournalFont() {
+        const font = MindSpaceStorage.getSettings().journalFont ?? 'system';
+        document.documentElement.dataset.journalFont = font;
+        document.querySelector('[data-font-choice="ipaex"]').setAttribute('aria-pressed', String(font === 'ipaex'));
+        this.loadEntryFonts([{ font }]);
+        if (!this.journalEditor.length) {
+            this.journalEditor.container.dataset.journalFont = font;
+            this.journalEditor.displayFont(font);
+        }
+    },
+
+    renderWeatherForm() {
+        document.querySelectorAll('.entry-tool[open]').forEach(tool => { tool.open = false; });
+        document.querySelector('#view-weather h1').textContent = this.editingId ? '编辑记录' : '记录心情';
+        document.getElementById('cancel-edit-btn').classList.toggle('hidden', !this.editingId);
+        this.renderTagsSelector();
+        this.updateNoteCount();
+        this.updateTagSummary();
+    },
+
+    updateTagSummary() {
+        document.getElementById('tag-summary').textContent = this.selectedTags.size ? `已选 ${this.selectedTags.size} 个` : '';
+    },
+
+    renderTagsSelector() {
+        const list = document.getElementById('mood-tags-list');
+        const tags = new Set([...MindSpaceStorage.getSettings().customTags, ...this.selectedTags]);
+        list.replaceChildren(...[...tags].map(tag => {
+            const button = document.createElement('button');
+            const selected = this.selectedTags.has(tag);
+            button.type = 'button';
+            button.className = 'tag-pill';
+            button.setAttribute('aria-pressed', String(selected));
+            button.classList.toggle('selected', selected);
+            button.textContent = tag;
+            button.onclick = () => {
+                const wasSelected = this.selectedTags.has(tag);
+                if (wasSelected) this.selectedTags.delete(tag);
+                else this.selectedTags.add(tag);
+                button.setAttribute('aria-pressed', String(!wasSelected));
+                button.classList.toggle('selected', !wasSelected);
+                this.storeDraft();
+            };
+            return button;
+        }));
+    },
+
+    startEditing(log) {
+        const day = this.router.currentView === 'journal' ? this.journalDate : '';
+        this.hideModal();
+        this.router.navigate('weather', { editId: log.id, day });
+    },
+
+    finishEditing() {
+        const key = this.draftKey(this.editingId);
+        this.drafts.delete(key);
+        try { sessionStorage.removeItem(key); } catch { /* Memory state is already reset. */ }
+        this.editingId = null;
+        this.editOriginal = null;
+        this.editingDay = '';
+        this.setWeatherForm(this.readDraft(null)?.form);
+    },
+
+    isDayKey(day) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+        const date = new Date(`${day}T12:00:00`);
+        return Number.isFinite(date.getTime()) && MindSpaceStorage.dateKey(date) === day;
+    },
+
+    resetJournalInputs() {
+        document.getElementById('journal-search').value = '';
+        document.getElementById('journal-weather').value = '';
+        document.getElementById('journal-period').value = '';
+    },
+
+    renderJournalList({ focusAdded = false } = {}) {
+        const normalize = value => value.normalize('NFKC').toLowerCase();
+        const search = normalize(document.getElementById('journal-search').value.trim());
+        const terms = search ? search.split(/\s+/) : [];
+        const weather = document.getElementById('journal-weather').value;
+        const periodControl = document.getElementById('journal-period');
+        const period = Number(periodControl.value);
+        const firstDay = period ? MindSpaceStorage.dateKey(this.recentDates(period)[0]) : '';
+        const today = MindSpaceStorage.dateKey();
+        const date = this.journalDate;
+        const filtered = Boolean(search || weather || period || date);
+        periodControl.disabled = Boolean(date);
+        const dayFilter = document.getElementById('journal-day-filter');
+        dayFilter.hidden = !date;
+        const dayLabel = date ? LONG_DATE.format(new Date(`${date}T12:00:00`)) : '';
+        document.getElementById('journal-day-label').textContent = dayLabel;
+        document.getElementById('journal-clear-day').setAttribute('aria-label', `清除日期筛选，${dayLabel}`);
+        document.getElementById('journal-clear-filters').hidden = !filtered;
+
+        const logs = MindSpaceStorage.getLogs();
+        const dayEntries = date ? logs.filter(log => MindSpaceStorage.dateKey(new Date(log.timestamp)) === date) : [];
+        const dayWeather = document.getElementById('journal-day-weather');
+        dayWeather.hidden = !dayEntries.length;
+        dayWeather.innerHTML = dayEntries.length
+            ? `<span class="journal-day-weather-label">当日天气</span>${this.weatherWeightScores(MindSpaceStorage.moodWeights(dayEntries))}`
+            : '';
+        const firstEntry = !logs.length && !filtered;
+        document.querySelector('#view-journal .journal-filter-row').hidden = firstEntry;
+        document.querySelector('#view-journal .journal-result-bar').hidden = !filtered;
+        document.querySelector('#view-journal .page-actions [data-go="weather"]').hidden = firstEntry;
+        const matches = (date ? dayEntries : logs).filter(log => {
+            if (weather && !MindSpaceStorage.moods(log.weather).includes(weather)) return false;
+            if (!date && firstDay) {
+                const day = MindSpaceStorage.dateKey(new Date(log.timestamp));
+                if (day < firstDay || day > today) return false;
+            }
+            if (!terms.length) return true;
+            const fields = [MindSpaceStorage.moodName(log.weather), log.note, ...log.tags].map(normalize);
+            return terms.every(term => fields.some(field => field.includes(term)));
+        });
+
+        const list = document.getElementById('journal-list');
+        const empty = document.getElementById('journal-empty');
+        const status = document.getElementById('journal-status');
+        const more = document.getElementById('journal-load-more');
+        const active = document.activeElement;
+        const focusedCard = active?.closest('#journal-list .journal-card');
+        const previousCount = list.querySelectorAll('.journal-card').length;
+        const displayed = matches.slice(0, this.journalLimit);
+        const description = matches.length > displayed.length
+            ? `共 ${matches.length} 条，已显示 ${displayed.length} 条` : `${matches.length} 条记录`;
+        status.hidden = firstEntry;
+        if (status.textContent !== description) status.textContent = description;
+        list.hidden = !displayed.length;
+        empty.hidden = Boolean(displayed.length);
+        empty.querySelector('p').textContent = filtered ? '没有匹配的记录。' : '你的日期、天气和随笔会收在这里。';
+        empty.querySelector('button').hidden = filtered;
+        more.hidden = displayed.length >= matches.length;
+        if (!more.hidden) more.textContent = `显示更多记录（剩余 ${matches.length - displayed.length} 条）`;
+
+        const groups = this.logsByDay(displayed);
+        const fragment = document.createDocumentFragment();
+        const cards = new Map();
+        for (const [day, entries] of groups) {
+            const group = document.createElement('section');
+            group.className = 'journal-day';
+            const heading = document.createElement('h2');
+            heading.className = 'journal-day-heading';
+            heading.id = `journal-heading-${day}`;
+            heading.innerHTML = `${day === today ? '<span class="journal-today-marker">今天</span>' : ''}
+                <time datetime="${day}">${LONG_DATE.format(new Date(`${day}T12:00:00`))}</time>`;
+            group.setAttribute('aria-labelledby', heading.id);
+            group.append(heading);
+            for (const log of entries) {
+                const card = this.createJournalCard(log, terms);
+                cards.set(log.id, card);
+                group.append(card);
+            }
+            fragment.append(group);
+        }
+        list.replaceChildren(fragment);
+        if (focusAdded) {
+            const entry = displayed[previousCount];
+            cards.get(entry?.id)?.querySelector('.journal-open')?.focus();
+        } else if (focusedCard) {
+            const target = cards.get(focusedCard.dataset.id);
+            (target?.querySelector('.journal-open') || (firstEntry ? empty.querySelector('button') : status)).focus({ preventScroll: true });
+        }
+    },
+
+    logsByDay(logs) {
+        const groups = new Map();
+        for (const log of logs) {
+            const day = MindSpaceStorage.dateKey(new Date(log.timestamp));
+            if (!groups.has(day)) groups.set(day, []);
+            groups.get(day).push(log);
+        }
+        return groups;
+    },
+
+    createJournalCard(log, terms) {
+        const card = document.createElement('article');
+        const time = MindSpaceStorage.formatDate(log.timestamp);
+        const name = MindSpaceStorage.moodName(log.weather);
+        const start = this.journalExcerptStart(log.note, terms);
+        const tags = log.tags.slice(0, 3).map(tag => `<span class="tag">${escapeHTML(tag)}</span>`);
+        if (log.tags.length > 3) tags.push(`<span class="tag-more">+${log.tags.length - 3}</span>`);
+        card.className = 'journal-card card';
+        card.dataset.id = log.id;
+        card.dataset.weather = MindSpaceStorage.moods(log.weather)[0];
+        card.innerHTML = `
+                <button type="button" class="journal-open" aria-label="${escapeHTML([log.note.slice(start, start + 48), name, time, ...log.tags.slice(0, 3)].filter(Boolean).join('，'))}">
+                    ${log.note ? '<span class="journal-note-preview"></span>' : ''}
+                    <span class="journal-card-header">
+                        <time datetime="${new Date(log.timestamp).toISOString()}" class="journal-time">${time.slice(-5)}</time>
+                        <span class="journal-weather-info">${this.moodChips(log.weather)}
+                            <span class="journal-weather-name">${name}</span></span>
+                    </span>
+                    ${tags.length ? `<span class="journal-tags">${tags.join('')}</span>` : ''}
+                </button>`;
+        if (log.note) {
+            // Only two lines are visible. Avoid building spans for the rest of a long entry.
+            const limit = start + 512;
+            const end = limit < log.note.length ? JOURNAL_GRAPHEMES.segment(log.note).containing(limit).index : log.note.length;
+            this.renderJournalText(card.querySelector('.journal-note-preview'), log, start, end);
+        }
+        card.querySelector('.journal-open').onclick = () => this.openJournalDetail(log);
+        return card;
+    },
+
+    journalExcerptStart(note, terms) {
+        if (!note || !terms.length) return 0;
+        const lower = note.normalize('NFKC').toLowerCase();
+        const offsets = terms.map(term => lower.indexOf(term)).filter(index => index >= 0);
+        const match = offsets.length ? Math.min(...offsets) : 0;
+        if (match < 20 && !lower.slice(0, match).includes('\n')) return 0;
+        const start = Math.max(lower.lastIndexOf('\n', match - 1) + 1, match - 8, 0);
+        const segments = JOURNAL_GRAPHEMES.segment(note);
+        if (lower === note) return segments.containing(start).index;
+        // Compatibility characters can expand during search. Font offsets refer to the original note.
+        let normalizedEnd = 0;
+        for (const { segment, index } of segments) {
+            normalizedEnd += segment.normalize('NFKC').toLowerCase().length;
+            if (normalizedEnd > start) return index;
+        }
+        return 0;
+    },
+
+    renderJournalText(target, log, start = 0, end = log.note.length) {
+        const runs = log.fontRuns || [];
+        if (start) target.append('…');
+        if (!runs.length) target.append(log.note.slice(start, end));
+        const visibleRuns = [];
+        for (const [i, run] of runs.entries()) {
+            if (run.start >= end) break;
+            const stop = Math.min(runs[i + 1]?.start ?? end, end);
+            if (stop <= start) continue;
+            const span = document.createElement('span');
+            span.className = `ql-font-${run.font}`;
+            span.textContent = log.note.slice(Math.max(start, run.start), stop);
+            target.append(span);
+            visibleRuns.push(run);
+        }
+        if (end < log.note.length) target.append('…');
+        if (visibleRuns.length) this.loadEntryFonts(visibleRuns);
+    },
+
+    openJournalDetail(log) {
+        this.showModal(`${MindSpaceStorage.moodName(log.weather)} · 心情记录`, `
+            <article tabindex="0" aria-label="日记全文">
+                <p class="card-subtitle">${MindSpaceStorage.formatDate(log.timestamp)}</p>
+                <p class="modal-diary-text"></p>
+                ${log.tags.length ? `<div class="journal-tags">${log.tags.map(tag => `<span class="tag">${escapeHTML(tag)}</span>`).join('')}</div>` : ''}
+            </article>
+        `, [
+            { text: '删除记录', class: 'text-btn diary-delete', onClick: () => this.confirmDeleteLog(log) },
+            { text: '编辑', class: 'primary-btn', onClick: () => this.startEditing(log) }
+        ]);
+        const body = document.querySelector('#modal-body .modal-diary-text');
+        if (log.note) this.renderJournalText(body, log);
+        else body.textContent = '这条记录没有写文字。';
+    },
+
+    confirmDeleteLog(log) {
+        this.showModal('删除这条记录？', '日记会从本机删除。已启用云同步时，删除将在联网后同步。', [
+            { text: '取消', onClick: () => this.openJournalDetail(log) },
+            { text: '删除', class: 'danger-btn', onClick: () => {
+                try {
+                    const deleted = MindSpaceStorage.deleteLog(log.id);
+                    this.hideModal();
+                    this.refreshCurrentView();
+                    if (deleted) this.showToast('已删除记录', { text: '撤销', onClick: () => {
+                        MindSpaceStorage.restoreLog(deleted);
+                        this.refreshCurrentView();
+                        this.showToast('已恢复记录');
+                    }});
+                } catch (error) {
+                    this.showToast(error.message);
+                }
             }}
         ]);
     },
 
-    /**
-     * Render insights distribution charts
-     */
-    calculateClimateIndex(logs, now = Date.now()) {
-        const dayMs = 24 * 60 * 60 * 1000;
-        const weekMs = 7 * dayMs;
-        const freshnessMs = 3 * dayMs;
-        const weatherScores = {
-            sunny: 100,
-            breezy: 85,
-            cloudy: 60,
-            foggy: 50,
-            rainy: 35,
-            stormy: 15
-        };
-
-        const recentLogs = logs
-            .map(log => ({
-                ...log,
-                timestamp: Number(log.timestamp)
-            }))
-            .filter(log => {
-                if (!Number.isFinite(log.timestamp) || weatherScores[log.weather] === undefined) return false;
-                const ageMs = Math.max(0, now - log.timestamp);
-                return ageMs <= weekMs;
-            });
-
-        const hasFreshLog = recentLogs.some(log => Math.max(0, now - log.timestamp) <= freshnessMs);
-        if (!hasFreshLog) {
-            return {
-                score: null,
-                reason: recentLogs.length > 0 ? 'stale' : 'empty',
-                usedCount: recentLogs.length
-            };
-        }
-
-        let weightedSum = 0;
-        let totalWeight = 0;
-        recentLogs.forEach(log => {
-            const ageMs = Math.max(0, now - log.timestamp);
-            const freshnessRatio = 1 - Math.min(ageMs, weekMs) / weekMs;
-            const weight = 1 + freshnessRatio * 6;
-            weightedSum += weatherScores[log.weather] * weight;
-            totalWeight += weight;
-        });
-
-        return {
-            score: totalWeight > 0 ? Math.round(weightedSum / totalWeight) : null,
-            reason: totalWeight > 0 ? 'ok' : 'empty',
-            usedCount: recentLogs.length
-        };
-    },
-
     renderInsights() {
         const logs = MindSpaceStorage.getLogs();
-        const totalCount = logs.length;
-        
-        document.getElementById('stat-total-days').innerText = totalCount;
+        const byDay = this.logsByDay(logs);
+        const leaders = this.leadingMoods(MindSpaceStorage.moodWeights(logs));
+        const top = leaders.length === 1 ? leaders[0] : null;
+        const { totalBreathingMinutes, totalFocusMinutes, streak } = MindSpaceStorage.getCumulativeStats();
+        document.getElementById('stat-total-days').textContent = `${byDay.size} 天`;
+        const mostCommon = document.getElementById('stat-top-weather');
+        mostCommon.textContent = top ? MindSpaceStorage.WEATHER_MAP[top].name : leaders.length ? `${leaders.length} 种并列` : '—';
+        mostCommon.title = leaders.map(key => MindSpaceStorage.WEATHER_MAP[key].name).join('、');
+        document.getElementById('stat-weather-icon').setAttribute('name', top ? WEATHER_ICON_MAP[top] : 'cloudy-outline');
+        document.getElementById('stat-cumulative-focus').textContent = `${totalFocusMinutes + totalBreathingMinutes} 分钟`;
+        document.getElementById('stat-mindful-streak').textContent = `${streak} 天`;
 
-        // Calculate frequencies
-        const counts = { sunny: 0, breezy: 0, cloudy: 0, foggy: 0, rainy: 0, stormy: 0 };
-        logs.forEach(log => {
-            if (counts[log.weather] !== undefined) {
-                counts[log.weather]++;
+        const days = this.recentDates(CALENDAR_PAGE_SIZE, this.insightOffsetDays);
+        const dayKeys = days.map(date => MindSpaceStorage.dateKey(date));
+        const firstDay = dayKeys[0];
+        const today = MindSpaceStorage.dateKey();
+        const firstLogDay = Array.from(byDay.keys()).at(-1);
+        const previous = document.getElementById('calendar-previous');
+        const next = document.getElementById('calendar-next');
+        previous.disabled = !firstLogDay || firstLogDay >= firstDay;
+        next.disabled = !this.insightOffsetDays;
+        const shortRange = days[0].getFullYear() === days.at(-1).getFullYear() && days[0].getFullYear() === new Date().getFullYear();
+        const format = shortRange ? SHORT_DATE : LONG_DATE;
+        document.getElementById('calendar-range').textContent = `${format.format(days[0])} 至 ${format.format(days.at(-1))}`;
+
+        const displayedLogs = dayKeys.flatMap(day => byDay.get(day) || []);
+        const datesWithLogs = dayKeys.filter(day => byDay.has(day)).length;
+        document.getElementById('weather-calendar-comfort').textContent =
+            `${datesWithLogs} 天有记录，共 ${displayedLogs.length} 条日记。点选日期可查看或补记。`;
+
+        const calendar = document.getElementById('weather-calendar-grid');
+        calendar.replaceChildren(...days.map((date, index) => {
+            const day = dayKeys[index];
+            const entries = byDay.get(day) || [];
+            const weights = MindSpaceStorage.moodWeights(entries);
+            const cell = document.createElement('button');
+            cell.type = 'button';
+            cell.className = `calendar-day${day === today ? ' is-today' : ''}`;
+            cell.textContent = date.getDate();
+            if (index === 0) cell.style.gridColumnStart = (date.getDay() + 6) % 7 + 1;
+            if (date.getDate() === 1 || index === 0) {
+                const month = document.createElement('small');
+                month.className = 'calendar-month';
+                month.textContent = `${date.getMonth() + 1}月`;
+                cell.prepend(month);
             }
-        });
-
-        // Determine most frequent weather
-        let maxCount = 0;
-        let topWeather = '-';
-        Object.entries(counts).forEach(([weatherKey, count]) => {
-            if (count > maxCount) {
-                maxCount = count;
-                const weatherInfo = MindSpaceStorage.WEATHER_MAP[weatherKey];
-                topWeather = weatherInfo ? `${weatherInfo.emoji} ${weatherInfo.name}` : weatherKey;
-            }
-        });
-        document.getElementById('stat-top-weather').innerText = totalCount > 0 ? topWeather : '-';
-
-        // Update weather icon if we have a top weather
-        const statWeatherIcon = document.getElementById('stat-weather-icon');
-        if (statWeatherIcon) {
-            const weatherIconMap = {
-                sunny: 'sunny-outline',
-                breezy: 'leaf-outline',
-                cloudy: 'cloudy-outline',
-                foggy: 'cloud-outline',
-                rainy: 'rainy-outline',
-                stormy: 'thunderstorm-outline'
-            };
-            let topWeatherKey = null;
-            Object.entries(counts).forEach(([weatherKey, count]) => {
-                if (count === maxCount && count > 0) {
-                    topWeatherKey = weatherKey;
+            const title = LONG_DATE.format(date);
+            if (day === today) cell.setAttribute('aria-current', 'date');
+            if (weights.length) {
+                const dayLeaders = this.leadingMoods(weights);
+                cell.classList.add('has-weather');
+                if (dayLeaders.length === 1) cell.classList.add(dayLeaders[0]);
+                cell.insertAdjacentHTML('beforeend', this.dayWeatherSummary(weights, dayLeaders));
+                if (entries.some(entry => entry.note)) cell.classList.add('has-note');
+                const description = this.weatherWeightLabel(weights);
+                cell.title = description;
+                cell.setAttribute('aria-label', `${title}，${entries.length} 条记录，${description}，查看日记`);
+                if (entries.length > 1) {
+                    const count = document.createElement('span');
+                    count.className = 'calendar-day-count';
+                    count.textContent = entries.length > 99 ? '99+' : entries.length;
+                    count.setAttribute('aria-hidden', 'true');
+                    cell.append(count);
                 }
-            });
-            if (topWeatherKey && weatherIconMap[topWeatherKey]) {
-                statWeatherIcon.setAttribute('name', weatherIconMap[topWeatherKey]);
             } else {
-                statWeatherIcon.setAttribute('name', 'cloudy-outline');
+                cell.setAttribute('aria-label', `${title}，补记当天心情`);
             }
-        }
-
-        const climateIndex = this.calculateClimateIndex(logs);
-        const score = climateIndex.score;
-
-        const gaugeProgress = document.getElementById('climate-gauge-progress');
-        const gaugeValue = document.getElementById('climate-gauge-value');
-        const gaugeStatus = document.getElementById('climate-gauge-status');
-        const gaugeTip = document.getElementById('climate-gauge-tip');
-
-        if (score !== null) {
-            gaugeValue.innerText = score;
-            
-            // Circumference of radius 42 is 263.89
-            const circumference = 263.89;
-            const offset = circumference * (1 - score / 100);
-            
-            if (gaugeProgress) {
-                setTimeout(() => {
-                    gaugeProgress.style.strokeDashoffset = offset;
-                }, 50);
-            }
-
-            if (score >= 80) {
-                gaugeStatus.innerText = '澄澈';
-                gaugeTip.innerHTML = '近期内心晴朗安稳，能量饱满。不妨将这份富足分享给生活中的小细节。';
-            } else if (score >= 50) {
-                gaugeStatus.innerText = '微澜';
-                gaugeTip.innerHTML = '心境偶有泛起涟漪，总体尚平稳。保持深呼吸，允许情绪如水流过。';
-            } else {
-                gaugeStatus.innerText = '阴雨';
-                gaugeTip.innerHTML = '内心经历着阴雨的冲刷。当前心理负担偏重，请多休息或开启正念呼吸，并在必要时寻求心理中心帮助。';
-            }
-        } else {
-            gaugeValue.innerText = '--';
-            if (gaugeProgress) {
-                gaugeProgress.style.strokeDashoffset = 263.89;
-            }
-            if (climateIndex.reason === 'stale') {
-                gaugeStatus.innerText = '待更新';
-                gaugeTip.innerHTML = '最近三天还没有新的内心天气记录，晴空指数暂不显示。补上一条近期记录后，将按最近七天并偏重近况重新计算。';
-            } else {
-                gaugeStatus.innerText = '觉察中';
-                gaugeTip.innerHTML = '记录最近七天的内心天气，获取更贴近当下的心灵晴空指数。';
-            }
-        }
-
-        // Render Cumulative Statistics
-        const cumulativeStats = MindSpaceStorage.getCumulativeStats();
-        const totalMindfulMinutes = cumulativeStats.totalFocusMinutes + cumulativeStats.totalBreathingMinutes;
-        
-        const focusEl = document.getElementById('stat-cumulative-focus');
-        if (focusEl) {
-            focusEl.innerText = `${totalMindfulMinutes}分`;
-        }
-        
-        const streakEl = document.getElementById('stat-mindful-streak');
-        if (streakEl) {
-            streakEl.innerText = `${cumulativeStats.streak}天`;
-        }
-
-        // 1. Render Weather Calendar Grid (Past 30 Days)
-        const logsByDate = {};
-        logs.forEach(log => {
-            const dateStr = new Date(log.timestamp).toDateString();
-            if (!logsByDate[dateStr] || new Date(log.timestamp) > new Date(logsByDate[dateStr].timestamp)) {
-                logsByDate[dateStr] = log;
-            }
-        });
-
-        const gridContainer = document.getElementById('weather-calendar-grid');
-        if (gridContainer) {
-            gridContainer.innerHTML = '';
-            for (let i = 29; i >= 0; i--) {
-                const targetDate = new Date();
-                targetDate.setDate(targetDate.getDate() - i);
-                const dateStr = targetDate.toDateString();
-                const displayDay = targetDate.getDate();
-
-                const log = logsByDate[dateStr];
-                const dayEl = document.createElement('div');
-                dayEl.className = 'calendar-day';
-                dayEl.innerText = displayDay;
-
-                const monthStr = targetDate.getMonth() + 1;
-                const readableDate = `${monthStr}月${displayDay}日`;
-
-                if (log) {
-                    const weatherInfo = MindSpaceStorage.WEATHER_MAP[log.weather] || { name: '未知', emoji: '✨' };
-                    dayEl.classList.add('has-weather', log.weather);
-
-                    let titleText = `${readableDate}：${weatherInfo.emoji} ${weatherInfo.name}`;
-
-                    if (log.note && log.note.trim()) {
-                        dayEl.classList.add('has-note');
-                        titleText += ' (已记录随笔，点击阅读)';
-
-                        dayEl.addEventListener('click', () => {
-                            app.openJournalDetail(log);
-                        });
-                    } else {
-                        dayEl.addEventListener('click', () => {
-                            app.showModal('心情气象', `${readableDate}，您的内心天气是 **${weatherInfo.emoji} ${weatherInfo.name}**。当天没有记录文字随笔。`, [
-                                { text: '好的', class: 'secondary-btn', onClick: () => app.hideModal() }
-                            ]);
-                        });
-                    }
-                    dayEl.setAttribute('title', titleText);
-                } else {
-                    dayEl.setAttribute('title', `${readableDate}：无记录`);
-                    dayEl.addEventListener('click', () => {
-                        app.showModal('心灵气象历', `${readableDate} 还没有记录心灵气象。`, [
-                            { text: '去记录心灵气象', class: 'primary-btn', onClick: () => {
-                                app.hideModal();
-                                app.router.navigate('weather');
-                            }},
-                            { text: '关闭', class: 'secondary-btn', onClick: () => app.hideModal() }
-                        ]);
-                    });
-                }
-                gridContainer.appendChild(dayEl);
-            }
-        }
-
-        // 2. Render Comfort Advice
-        const comfortContainer = document.getElementById('weather-calendar-comfort');
-        if (comfortContainer) {
-            let comfortMsg = '';
-            if (totalCount === 0) {
-                comfortMsg = '“心灵的气象如同四季更替，接纳它的起起落落。写下你的第一笔随笔，开启你的心灵气象台吧。”';
-            } else {
-                const sortedWeathers = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-                const primaryWeather = sortedWeathers[0][0];
-
-                if (primaryWeather === 'sunny') {
-                    comfortMsg = '🍃 <strong>气象暖评</strong>：最近你的心空中阳光明媚。多在户外走走，保存好这段温暖，愿它在你阴雨天时为你提供温暖的光芒。';
-                } else if (primaryWeather === 'breezy') {
-                    comfortMsg = '🍃 <strong>气象暖评</strong>：微风拂面，最近你的心境大多处于平静舒适的状态。继续保持正念呼吸，感受每一个轻松的当下。';
-                } else if (primaryWeather === 'cloudy') {
-                    comfortMsg = '🍃 <strong>气象暖评</strong>：最近内心云朵偏多。多云只是阳光暂歇的日常，允许自己有一些低落与沉静，抱一抱正在歇息的自己。';
-                } else if (primaryWeather === 'foggy') {
-                    comfortMsg = '🍃 <strong>气象暖评</strong>：最近内心被大雾笼罩，或许方向有些模糊。慢下来，看不清前路时就专注当下的呼吸，雾气总有散去的时候。';
-                } else if (primaryWeather === 'rainy') {
-                    comfortMsg = '🍃 <strong>气象暖评</strong>：最近内心在下着温柔的小雨。雨水能洗涤尘土，也是滋润生命的养分，给自己泡杯热茶，听听雨声，好好休息。';
-                } else if (primaryWeather === 'stormy') {
-                    comfortMsg = '🍃 <strong>气象暖评</strong>：最近内心雷雨交加，你正经历着情绪的起伏。请记住，雷雨终会过去，不要独自面对，安全避风港 (SOS) 随时为您守候。';
-                } else {
-                    comfortMsg = '🍃 <strong>气象暖评</strong>：内心的天气如同四季更替，每一天都是最自然的显现。接纳风雨，静待天晴。';
-                }
-            }
-            comfortContainer.innerHTML = comfortMsg;
-        }
-
-        // 3. Render Weather Distribution Chart with Micro-Animations
-        const container = document.getElementById('weather-chart-container');
-        container.innerHTML = '';
-
-        const weathers = ['sunny', 'breezy', 'cloudy', 'foggy', 'rainy', 'stormy'];
-
-        weathers.forEach(w => {
-            const count = counts[w];
-            const percent = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
-            const info = MindSpaceStorage.WEATHER_MAP[w];
-
-            const row = document.createElement('div');
-            row.className = 'chart-row';
-            row.innerHTML = `
-                <span class="chart-label">${info.emoji} ${info.name}</span>
-                <div class="chart-track">
-                    <div class="chart-fill ${w}" style="width: 0%"></div>
-                </div>
-                <span class="chart-percent">${percent}%</span>
-            `;
-            container.appendChild(row);
-
-            // Animate width transition
-            setTimeout(() => {
-                const fillEl = row.querySelector('.chart-fill');
-                if (fillEl) fillEl.style.width = `${percent}%`;
-            }, 50);
-        });
-
-        // 4. Render Lifestyle Tag Analysis with Micro-Animations
-        const tagCounts = {};
-        logs.forEach(log => {
-            if (log.tags && Array.isArray(log.tags)) {
-                log.tags.forEach(tag => {
-                    tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-                });
-            }
-        });
-
-        const sortedTags = Object.entries(tagCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 5);
-
-        const tagsContainer = document.getElementById('tags-analysis-container');
-        if (tagsContainer) {
-            tagsContainer.innerHTML = '';
-            if (sortedTags.length === 0) {
-                tagsContainer.innerHTML = `<div class="empty-analysis-text">暂无要素关联分析，记录内心天气并选择相关因子后将自动展现。</div>`;
-            } else {
-                const maxTagCount = sortedTags[0][1];
-                sortedTags.forEach(([tag, count]) => {
-                    const percent = Math.round((count / maxTagCount) * 100);
-                    const tagRow = document.createElement('div');
-                    tagRow.className = 'tag-analysis-row';
-                    tagRow.innerHTML = `
-                        <span class="tag-analysis-name" title="${escapeHTML(tag)}">${escapeHTML(tag)}</span>
-                        <div class="tag-analysis-track">
-                            <div class="tag-analysis-fill" style="width: 0%"></div>
-                        </div>
-                        <span class="tag-analysis-count">${count}次</span>
-                    `;
-                    tagsContainer.appendChild(tagRow);
-
-                    // Animate width transition
-                    setTimeout(() => {
-                        const fillEl = tagRow.querySelector('.tag-analysis-fill');
-                        if (fillEl) fillEl.style.width = `${percent}%`;
-                    }, 50);
-                });
-            }
-        }
+            cell.onclick = () => this.openWeatherDay(day, Boolean(entries.length));
+            return cell;
+        }));
+        this.renderInsightCharts(displayedLogs);
     },
 
-    /**
-     * Event bindings
-     */
+    renderInsightCharts(logs) {
+        const weights = new Map(MindSpaceStorage.moodWeights(logs));
+        const tagCounts = new Map();
+        for (const { tags } of logs) {
+            for (const tag of tags) tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+        }
+        const chart = document.getElementById('weather-chart-container');
+        chart.innerHTML = logs.length ? Object.entries(MindSpaceStorage.WEATHER_MAP).map(([key, { name }]) => {
+            const weight = weights.get(key) ?? 0;
+            const percent = 100 * weight / logs.length;
+            return `<div class="chart-row ${key}"><span class="chart-label">${name}</span>
+                <div class="chart-track" aria-hidden="true"><div class="chart-fill" style="width:${percent}%"></div></div>
+                <span class="chart-percent">${weight} 分</span></div>`;
+        }).join('') : '<p class="empty-analysis-text">这段时间没有心情记录。</p>';
+        const tags = [...tagCounts].sort(([, a], [, b]) => b - a).slice(0, 5);
+        document.getElementById('tags-analysis-container').innerHTML = tags.length ? tags.map(([tag, count]) => `
+            <div class="tag-analysis-row"><span class="tag-analysis-name">${escapeHTML(tag)}</span>
+            <div class="tag-analysis-track" aria-hidden="true"><div class="tag-analysis-fill" style="width:${100 * count / tags[0][1]}%"></div></div>
+            <span class="tag-analysis-count">${count} 次</span></div>`
+        ).join('') : '<p class="empty-analysis-text">这段时间没有添加标签。</p>';
+    },
+
+    refreshCurrentView() {
+        const render = {
+            dashboard: () => this.renderDashboard(),
+            journal: () => this.renderJournalList(),
+            insights: () => this.renderInsights(),
+            settings: () => this.renderProfileSettings()
+        }[this.router.currentView];
+        render?.();
+    },
+
+    selectBreathingMode(mode) {
+        document.querySelectorAll('.mode-tab').forEach(tab => {
+            const selected = tab.dataset.rhythm === mode;
+            tab.classList.toggle('active', selected);
+            tab.setAttribute('aria-pressed', String(selected));
+        });
+        MindSpaceBreathing.setRhythm(mode);
+    },
+
+    startBreathing(duration = null) {
+        MindSpaceFocusTimer.pause();
+        MindSpaceBreathing.start(duration);
+        const start = document.getElementById('start-breath-btn');
+        const stop = document.getElementById('stop-breath-btn');
+        const moveFocus = start.matches(':focus-visible');
+        start.classList.add('hidden');
+        stop.classList.remove('hidden');
+        if (moveFocus) stop.focus({ preventScroll: true });
+        document.getElementById('breath-stage').scrollIntoView({ block: 'nearest' });
+    },
+
+    stopBreathing() {
+        MindSpaceBreathing.stop();
+        const start = document.getElementById('start-breath-btn');
+        const stop = document.getElementById('stop-breath-btn');
+        const moveFocus = stop.matches(':focus-visible');
+        start.classList.remove('hidden');
+        stop.classList.add('hidden');
+        if (moveFocus) start.focus({ preventScroll: true });
+    },
+
+    quickBreathing() {
+        this.hideModal();
+        if (MindSpaceBreathing.isActive) this.stopBreathing();
+        this.router.navigate('breathing');
+        this.selectBreathingMode('55');
+        this.startBreathing(60);
+    },
+
+    showToast(message, action = null) {
+        const toast = document.getElementById('toast');
+        document.getElementById('toast-message').textContent = message;
+        const button = document.getElementById('toast-action');
+        button.classList.toggle('hidden', !action);
+        button.textContent = action?.text || '';
+        button.onclick = action?.onClick || null;
+        toast.classList.remove('hidden');
+        clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => toast.classList.add('hidden'), action ? 14000 : 4500);
+    },
+
     bindEvents() {
-        // Change weather background transition dynamically
-        document.querySelectorAll('input[name="selected-weather"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                const viewWeather = document.getElementById('view-weather');
-                if (viewWeather) {
-                    viewWeather.setAttribute('data-active-weather', e.target.value);
+        const picker = document.getElementById('widget-today-weather');
+        const scene = document.querySelector('.welcome-card .lake-window');
+        const previewSky = () => {
+            if (!picker.querySelector('[data-pick]')) return;
+            const pointerChoice = matchMedia('(hover: hover) and (pointer: fine)').matches ? picker.querySelector('[data-pick]:hover') : null;
+            const keyboardChoice = picker.querySelector('[data-pick]:focus-visible');
+            scene.dataset.sky = keyboardChoice?.dataset.pick || pointerChoice?.dataset.pick || '';
+        };
+        for (const event of ['pointerover', 'pointerout', 'focusin', 'focusout']) {
+            picker.addEventListener(event, () => requestAnimationFrame(previewSky));
+        }
+        document.getElementById('skip-to-content').addEventListener('click', event => {
+            event.preventDefault();
+            document.querySelector('.app-view.active h1')?.focus();
+        });
+        document.addEventListener('mindspace:focus-state', event => {
+            this.focusStatus = event.detail;
+            this.renderFocusIndicator();
+        });
+        document.addEventListener('mindspace:sync-conflicts', event => {
+            this.showToast(`已在本机保留 ${event.detail} 条有差异的日记`);
+        });
+        document.addEventListener('mindspace:delete-conflicts', () => {
+            this.showToast('另一台设备修改了要删除的日记，已保留云端版本。');
+        });
+        document.addEventListener('click', event => {
+            const navigation = event.target.closest('[data-view], [data-go], [data-quick-breath], [data-pick]');
+            if (!navigation) return;
+            if (navigation.hasAttribute('data-quick-breath')) this.quickBreathing();
+            else if (navigation.dataset.pick) {
+                this.router.navigate('weather');
+                this.setEntryStep('setup');
+                this.storeDraft();
+                const choice = document.querySelector(`input[name="selected-weather"][value="${navigation.dataset.pick}"]`);
+                if (!choice.checked) choice.click();
+            }
+            else this.router.navigate(navigation.dataset.view || navigation.dataset.go);
+        });
+
+        const status = document.getElementById('weather-status');
+        const setupStatus = document.getElementById('entry-setup-status');
+        const timeStatus = document.getElementById('entry-time-status');
+        const moodChoices = document.querySelectorAll('input[name="selected-weather"]');
+        moodChoices.forEach(choice => {
+            choice.addEventListener('change', () => {
+                if (choice.checked && this.selectedMoods.length === 2) {
+                    choice.checked = false;
+                    setupStatus.textContent = '已选两种，取消一项后再选。';
+                    return;
+                }
+                this.selectedMoods = choice.checked
+                    ? [...this.selectedMoods, choice.value]
+                    : this.selectedMoods.filter(key => key !== choice.value);
+                setupStatus.textContent = '';
+                this.storeDraft();
+            });
+        });
+        document.querySelectorAll('[data-entry-mode]').forEach(button => {
+            button.addEventListener('click', () => {
+                const mode = button.dataset.entryMode;
+                if (mode !== this.entryMode) this.entryMoment = null;
+                this.setEntryMode(mode);
+                setupStatus.textContent = '';
+                this.storeDraft();
+            });
+        });
+        const note = document.getElementById('mood-note');
+        const pastTime = document.getElementById('entry-past-time');
+        const updateEntryField = event => {
+            if (event.isComposing) return;
+            const field = event.target;
+            this.updateEntryMask(field);
+            field.removeAttribute('aria-invalid');
+            timeStatus.textContent = '';
+            this.storeDraft();
+        };
+        pastTime.addEventListener('input', updateEntryField);
+        pastTime.addEventListener('compositionend', updateEntryField);
+        pastTime.addEventListener('beforeinput', event => {
+            const field = event.target;
+            const cursor = field.selectionStart;
+            const backward = event.inputType === 'deleteContentBackward';
+            if (!event.cancelable || cursor !== field.selectionEnd || (!backward && event.inputType !== 'deleteContentForward')) return;
+            const divider = field.value[backward ? cursor - 1 : cursor];
+            if (divider !== '/' && divider !== ':') return;
+            event.preventDefault();
+            field.setRangeText('', backward ? cursor - 2 : cursor, backward ? cursor : cursor + 2, 'start');
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        document.getElementById('entry-confirm').addEventListener('click', () => {
+            if (!this.selectedMoods.length) {
+                setupStatus.textContent = '先选一种或两种心情。';
+                moodChoices[0].focus();
+                return;
+            }
+            try {
+                this.entryMoment = this.entryTimestamp();
+                timeStatus.textContent = '';
+                this.setEntryStep('writing');
+                this.storeDraft();
+                status.textContent = '';
+                window.scrollTo(0, 0);
+                note.focus({ preventScroll: true });
+            } catch (error) {
+                (this.entryMode === 'past' ? timeStatus : setupStatus).textContent = error.message;
+            }
+        });
+        document.getElementById('entry-change').addEventListener('click', () => {
+            this.setEntryStep('setup');
+            setupStatus.textContent = '';
+            this.storeDraft();
+            document.querySelector('.entry-page-title').focus();
+        });
+        document.getElementById('profile-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const input = document.getElementById('user-name');
+            const status = document.getElementById('profile-status');
+            try {
+                const settings = MindSpaceStorage.getSettings();
+                settings.userName = input.value.trim() || MindSpaceStorage.DEFAULT_SETTINGS.userName;
+                MindSpaceStorage.saveSettings(settings);
+                input.value = settings.userName;
+                status.textContent = '已保存。';
+                if (this.router.currentView === 'dashboard') this.renderDashboard();
+                this.showToast('称呼已更新');
+            } catch (error) {
+                status.textContent = error.message;
+            }
+        });
+        document.getElementById('cancel-edit-btn').addEventListener('click', () => {
+            const day = this.editingDay;
+            this.finishEditing();
+            this.router.navigate('journal', { day });
+        });
+
+        document.getElementById('save-log-btn').addEventListener('click', () => {
+            const { weather, tags, note, fontRuns } = this.readWeatherForm();
+            if (this.entryStep !== 'writing' || this.entryMoment === null || !weather) return;
+
+            try {
+                const timestamp = this.entryMoment;
+                const day = MindSpaceStorage.dateKey(new Date(timestamp));
+                if (this.editingId) {
+                    const saved = MindSpaceStorage.updateLog(this.editingId, weather, tags, note, { expected: this.editOriginal, timestamp, fontRuns });
+                    const asCopy = saved.id !== this.editingId;
+                    const returnDay = (this.editingDay || timestamp !== this.editOriginal.timestamp) ? day : '';
+                    this.finishEditing();
+                    this.router.navigate('journal', { day: returnDay });
+                    this.showToast(asCopy ? '原记录已变更，本次编辑已另存为本机日记' : '已保存修改');
+                } else {
+                    MindSpaceStorage.saveLog(weather, tags, note, timestamp, fontRuns);
+                    this.finishEditing();
+                    if (day !== MindSpaceStorage.dateKey()) {
+                        this.router.navigate('journal', { day });
+                        this.showToast('已补记当天的心情');
+                        return;
+                    }
+                    this.router.navigate('dashboard');
+                    this.showToast('已记下此刻', { text: '呼吸一分钟', onClick: () => {
+                        document.getElementById('toast').classList.add('hidden');
+                        this.quickBreathing();
+                    }});
+                }
+                status.textContent = '';
+            } catch (error) {
+                status.textContent = error.message;
+            }
+        });
+
+        const entryTools = document.querySelectorAll('.entry-tool');
+        document.addEventListener('click', event => {
+            for (const tool of entryTools) {
+                if (tool.open && !tool.contains(event.target)) tool.open = false;
+            }
+        });
+        entryTools.forEach(tool => {
+            tool.addEventListener('keydown', event => {
+                if (!tool.open || event.key !== 'Escape') return;
+                event.stopPropagation();
+                tool.open = false;
+                tool.querySelector('summary').focus({ preventScroll: true });
+            });
+        });
+        let fontRequest = 0;
+        const fontLoadError = '字体加载失败，请重试。';
+        document.querySelectorAll('[data-font-choice]').forEach(button => {
+            button.addEventListener('click', async () => {
+                const request = ++fontRequest;
+                const { fontChoice, fontSource } = button.dataset;
+                const picker = button.closest('#font-details');
+                if (picker?.open) {
+                    picker.open = false;
+                    this.journalEditor.applyFont(fontChoice);
+                }
+                if (document.getElementById('toast-message').textContent === fontLoadError) {
+                    document.getElementById('toast').classList.add('hidden');
+                }
+                if (fontSource) {
+                    button.setAttribute('aria-busy', 'true');
+                    try {
+                        await this.loadJournalFont(button);
+                    } catch {
+                        if (request === fontRequest) this.showToast(fontLoadError);
+                        return;
+                    } finally {
+                        button.removeAttribute('aria-busy');
+                    }
+                }
+                if (request !== fontRequest) return;
+                const settings = MindSpaceStorage.getSettings();
+                try {
+                    MindSpaceStorage.saveSettings({ ...settings, journalFont: fontChoice });
+                    this.refreshJournalFont();
+                } catch (error) {
+                    this.showToast(error.message);
                 }
             });
         });
-
-        // Log Weather Save Action
-        document.getElementById('save-log-btn').addEventListener('click', async () => {
-            const selectedRadio = document.querySelector('input[name="selected-weather"]:checked');
-            if (!selectedRadio) return;
-
-            const weatherVal = selectedRadio.value;
-            const noteVal = document.getElementById('mood-note').value;
-            const tagsArr = Array.from(this.selectedTags);
-
-            // Save
-            await MindSpaceStorage.saveLog(weatherVal, tagsArr, noteVal);
-
-            // Pop success confirmation
-            this.showModal('已记入心空', '您的心灵气象已保存在本地，接纳心空的起伏与风雨。', [
-                { text: '查看随笔', class: 'secondary-btn', onClick: () => {
-                    this.hideModal();
-                    this.router.navigate('journal');
-                }},
-                { text: '好的', class: 'secondary-btn', onClick: () => {
-                    this.hideModal();
-                    this.router.navigate('dashboard');
-                }}
-            ]);
-        });
-
-        // Custom Tag Addition
+        const tagInput = document.getElementById('custom-tag-input');
         const addCustomTag = () => {
-            const tagInput = document.getElementById('custom-tag-input');
-            const tagVal = tagInput.value.trim();
-            if (!tagVal) return;
-
+            const tag = tagInput.value.trim();
+            if (!tag) return;
             const settings = MindSpaceStorage.getSettings();
-            
-            // Add if not duplicates
-            if (!settings.customTags.includes(tagVal)) {
-                settings.customTags.push(tagVal);
+            if (!settings.customTags.includes(tag)) settings.customTags.push(tag);
+            try {
                 MindSpaceStorage.saveSettings(settings);
-                this.selectedTags.add(tagVal); // Select it by default
+                this.selectedTags.add(tag);
+                tagInput.value = '';
                 this.renderTagsSelector();
+                this.storeDraft();
+            } catch (error) {
+                status.textContent = error.message;
             }
-            
-            tagInput.value = '';
         };
-
         document.getElementById('add-custom-tag-btn').addEventListener('click', addCustomTag);
-        document.getElementById('custom-tag-input').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
+        tagInput.addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
                 addCustomTag();
             }
         });
 
-        // Breathing controls
-        const startBtn = document.getElementById('start-breath-btn');
-        const stopBtn = document.getElementById('stop-breath-btn');
-
-        startBtn.addEventListener('click', () => {
-            // Mutual Exclusion: Pause Focus Timer if running
-            if (typeof MindSpaceFocusTimer !== 'undefined' && MindSpaceFocusTimer.isRunning) {
-                MindSpaceFocusTimer.pause();
-            }
-            MindSpaceBreathing.start();
-            startBtn.classList.add('hidden');
-            stopBtn.classList.remove('hidden');
-        });
-
-        stopBtn.addEventListener('click', () => {
-            MindSpaceBreathing.stop();
-            startBtn.classList.remove('hidden');
-            stopBtn.classList.add('hidden');
-        });
-
-        // Rhythm mode switching tabs
+        document.getElementById('start-breath-btn').addEventListener('click', () => this.startBreathing());
+        document.getElementById('stop-breath-btn').addEventListener('click', () => this.stopBreathing());
         document.querySelectorAll('.mode-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                const rhythmId = tab.dataset.rhythm;
-                MindSpaceBreathing.setRhythm(rhythmId);
-            });
+            tab.addEventListener('click', () => this.selectBreathingMode(tab.dataset.rhythm));
+        });
+        document.getElementById('breath-sound-prompt').addEventListener('change', event => {
+            MindSpaceBreathing.toggleSoundPrompt(event.target.checked);
+        });
+        document.addEventListener('mindspace:breathing-complete', () => {
+            this.stopBreathing();
+            this.showToast('已完成一分钟呼吸');
         });
 
-        // Breathing sound prompt toggle
-        const breathSoundToggle = document.getElementById('breath-sound-prompt');
-        if (breathSoundToggle) {
-            breathSoundToggle.addEventListener('change', (e) => {
-                MindSpaceBreathing.toggleSoundPrompt(e.target.checked);
-            });
-        }
-
-        // Search in journal typing
-        document.getElementById('journal-search').addEventListener('input', () => {
+        const journalSearch = document.getElementById('journal-search');
+        const updateJournal = () => {
+            this.journalLimit = JOURNAL_PAGE_SIZE;
             this.renderJournalList();
+        };
+        let composing = false;
+        journalSearch.addEventListener('compositionstart', () => { composing = true; });
+        journalSearch.addEventListener('compositionend', () => {
+            composing = false;
+            updateJournal();
         });
-
-        // Data Management actions
-        document.getElementById('btn-export-md').addEventListener('click', () => {
-            MindSpaceStorage.exportToMarkdown();
+        journalSearch.addEventListener('input', event => {
+            if (!composing && !event.isComposing) updateJournal();
         });
-
-        document.getElementById('btn-export-json').addEventListener('click', () => {
-            MindSpaceStorage.exportToJSON();
+        document.getElementById('journal-weather').addEventListener('change', updateJournal);
+        document.getElementById('journal-period').addEventListener('change', updateJournal);
+        document.getElementById('journal-clear-day').addEventListener('click', () => this.router.navigate('journal'));
+        document.getElementById('journal-clear-filters').addEventListener('click', () => {
+            this.journalLimit = JOURNAL_PAGE_SIZE;
+            this.resetJournalInputs();
+            this.router.navigate('journal', { focus: false });
+            journalSearch.focus({ preventScroll: true });
         });
-
-        const jsonFileInput = document.getElementById('import-json-file-input');
-        if (jsonFileInput) {
-            document.getElementById('btn-import-json').addEventListener('click', () => {
-                jsonFileInput.click();
-            });
-
-            jsonFileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.onload = async (event) => {
-                    const jsonString = event.target.result;
-                    try {
-                        await MindSpaceStorage.importFromJSON(jsonString);
-                        this.showModal('导入成功 ✨', '您的备份数据已成功导入并智能合并至本地存储。', [
-                            { text: '确定', class: 'secondary-btn', onClick: () => {
-                                this.hideModal();
-                                // Refresh current UI state
-                                this.renderDashboard();
-                                this.router.navigate(this.router.currentView);
-                            }}
-                        ]);
-                    } catch (err) {
-                        this.showModal('导入失败 ❌', escapeHTML(err.message || '备份数据解析失败，格式不正确。'), [
-                            { text: '好的', class: 'secondary-btn', onClick: () => this.hideModal() }
-                        ]);
-                    } finally {
-                        jsonFileInput.value = '';
-                    }
-                };
-                reader.readAsText(file);
+        document.getElementById('journal-load-more').addEventListener('click', () => {
+            this.journalLimit += JOURNAL_PAGE_SIZE;
+            this.renderJournalList({ focusAdded: true });
+        });
+        const previous = document.getElementById('calendar-previous');
+        const next = document.getElementById('calendar-next');
+        for (const [button, fallback, change] of [[previous, next, CALENDAR_PAGE_SIZE], [next, previous, -CALENDAR_PAGE_SIZE]]) {
+            button.addEventListener('click', () => {
+                this.insightOffsetDays = Math.max(0, this.insightOffsetDays + change);
+                this.renderInsights();
+                if (button.disabled) fallback.focus({ preventScroll: true });
             });
         }
 
-        document.getElementById('btn-clear-all').addEventListener('click', () => {
-            this.showModal('危险操作！擦除本地数据', '确定要清除所有的本地气象与随笔记录吗？这将完全抹掉设备上的所有数据，且不可逆。', [
-                { text: '确认彻底清除', class: 'danger-btn', onClick: () => {
-                    MindSpaceStorage.clearAllData();
-                    this.hideModal();
-                    // Reload page to re-init storage
-                    window.location.reload();
+        const backupActions = {
+            'btn-export-md': () => MindSpaceStorage.exportToMarkdown(),
+            'btn-export-json': () => MindSpaceStorage.exportToJSON()
+        };
+        for (const [id, action] of Object.entries(backupActions)) {
+            document.getElementById(id).addEventListener('click', () => {
+                try { action(); }
+                catch (error) { this.showToast(error.message); }
+            });
+        }
+
+        const importInput = document.getElementById('import-json-file-input');
+        document.getElementById('btn-import-json').onclick = () => importInput.click();
+        importInput.addEventListener('change', async () => {
+            const file = importInput.files[0];
+            if (!file) return;
+            try {
+                const backup = MindSpaceStorage.previewImport(await file.text());
+                const scope = MindSpaceStorage.activeScope;
+                const consent = MindSpaceStorage.activeConsent;
+                const uploadChoice = scope && backup.newLogs ? `<label class="option-toggle sync-consent">
+                    <input type="checkbox" id="sync-restored"><span class="toggle-slider"></span>
+                    <span>同时上传新增日记到 ${escapeHTML(this.currentUser?.email || '当前云账户')}</span></label>` : '';
+                const differences = backup.conflicts
+                    ? `<p>其中 ${backup.conflicts} 条日记与本机版本内容不同。恢复时会保留本机版本。</p>` : '';
+                this.showModal('恢复备份', `<p>备份中共有 ${backup.logs.length} 条日记。恢复后将新增 ${backup.newLogs} 条，并合并练习统计。</p>${differences}${uploadChoice}`, [
+                    { text: '取消', onClick: () => this.hideModal() },
+                    { text: '确认恢复', class: 'primary-btn', onClick: () => {
+                        try {
+                            const upload = document.getElementById('sync-restored')?.checked;
+                            const added = MindSpaceStorage.importBackup(backup, upload ? { scope, consent } : null);
+                            this.renderProfileSettings();
+                            this.refreshTheme();
+                            this.refreshJournalFont();
+                            this.hideModal();
+                            this.showToast(`备份已恢复，新增 ${added} 条日记`);
+                        } catch (error) {
+                            this.showModal('无法恢复备份', escapeHTML(error.message), [{ text: '关闭', onClick: () => this.hideModal() }]);
+                        }
+                    }}
+                ]);
+            } catch (error) {
+                this.showModal('无法恢复备份', escapeHTML(error.message), [{ text: '关闭', onClick: () => this.hideModal() }]);
+            } finally {
+                importInput.value = '';
+            }
+        });
+
+        document.getElementById('btn-clear-all').onclick = () => {
+            this.showModal('清除本机数据？', '<p>这会移除本机日记、练习记录、草稿、设置和云连接。云端记录会保留。</p><p>请先保存想保留的草稿，再导出备份。</p>', [
+                { text: '取消', onClick: () => this.hideModal() },
+                { text: '清除本机数据', class: 'danger-btn', onClick: () => {
+                    try {
+                        MindSpaceBreathing.stop();
+                        MindSpaceFocusTimer.pause();
+                        MindSpaceFocusTimer.clearStoredState?.();
+                        MindSpaceSoundMixer.stopAllImmediate();
+                        MindSpaceSoundMixer.clearStoredState?.();
+                        MindSpaceStorage.clearAllData();
+                        window.SupabaseService.clearConfig({ clearSession: true, allProjects: true });
+                        location.reload();
+                    } catch (error) {
+                        this.showToast(error.message);
+                    }
                 }}
             ]);
-        });
+        };
 
         // Check for Update Button
         const btnCheckUpdate = document.getElementById('btn-check-update');
@@ -1145,66 +1477,39 @@ const app = {
             });
         }
 
-        // Modal Close action
-        document.getElementById('modal-close').addEventListener('click', () => {
-            this.hideModal();
-        });
-
-        // Close modal on background click
-        document.getElementById('modal-container').addEventListener('click', (e) => {
-            if (e.target.id === 'modal-container') {
-                this.hideModal();
-            }
-        });
-
-        // --- Supabase Config Modals & Auth Bindings ---
-        
-        // Open Auth modal (Login/Register)
-        document.querySelectorAll('.auth-status-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.openAuthModal();
+        for (const id of ['modal-container', 'cloud-config-modal', 'auth-modal']) {
+            const overlay = document.getElementById(id);
+            overlay.querySelector('.modal-header button').onclick = () => this.closeOverlay(id);
+            overlay.addEventListener('click', event => {
+                if (event.target === overlay && this.overlays.at(-1)?.overlay === overlay) this.closeOverlay(id);
             });
-        });
+        }
+        document.addEventListener('keydown', event => this.handleOverlayKey(event));
 
-        // Open Cloud Config modal
-        const configTriggerIds = ['sidebar-cloud-config-btn', 'mobile-cloud-config-btn', 'btn-cloud-config'];
-        configTriggerIds.forEach(id => {
-            const btn = document.getElementById(id);
-            if (btn) {
-                btn.addEventListener('click', () => {
-                    this.openConfigModal();
-                });
-            }
-        });
-
-        // Modal Close Buttons inside Cloud Config & Auth Modals
-        document.querySelectorAll('#cloud-config-modal .modal-close-btn, #auth-modal .modal-close-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const modal = e.target.closest('.modal-overlay');
-                if (modal) {
-                    if (modal.id === 'auth-modal' && modal.dataset.forceAuth === 'true') {
-                        return;
+        document.getElementById('sidebar-auth-btn').onclick = () => this.router.navigate('settings');
+        document.getElementById('mobile-auth-btn').onclick = () => this.router.navigate('settings');
+        document.getElementById('settings-auth-btn').onclick = () => this.openAuthModal();
+        document.getElementById('btn-cloud-config').onclick = () => this.openConfigModal();
+        document.getElementById('btn-forget-cloud').onclick = () => {
+            this.showModal('移除云连接？', '<p>本机和云端日记都会保留。本机待同步的修改只会在重新登录原账户并开启同步后发送。</p>', [
+                { text: '取消', onClick: () => this.hideModal() },
+                { text: '移除连接', class: 'danger-btn', onClick: async () => {
+                    try {
+                        MindSpaceStorage.forgetSync(window.SupabaseService.getConfig().url);
+                        window.SupabaseService.clearConfig({ clearSession: true });
+                        await this.updateAuthUI();
+                        this.hideModal();
+                        this.showToast('云连接已移除');
+                    } catch (error) {
+                        this.showToast(error.message);
                     }
-                    modal.classList.add('hidden');
-                    this.forceRepaint();
-                }
-            });
-        });
-
-        // Close modals on overlay background click
-        document.querySelectorAll('#cloud-config-modal, #auth-modal').forEach(modal => {
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
-                    if (modal.id === 'auth-modal') {
-                        if (modal.dataset.forceAuth === 'true') {
-                            return;
-                        }
-                    }
-                    modal.classList.add('hidden');
-                    this.forceRepaint();
-                }
-            });
-        });
+                }}
+            ]);
+        };
+        document.getElementById('btn-sync-toggle').onclick = () => this.toggleSync();
+        window.addEventListener('online', () => MindSpaceStorage.requestSync());
+        document.addEventListener('mindspace:auth', event => this.applyAuthUser(event.detail));
+        document.addEventListener('mindspace:sync', event => this.renderSyncState(event.detail));
 
         // --- Change Password Form Event Bindings ---
         const toggleChangePwdBtn = document.getElementById('btn-toggle-change-pwd');
@@ -1312,212 +1617,74 @@ const app = {
         }
     },
 
-    /**
-     * Update UI headers & settings sync cards based on auth status
-     */
     async updateAuthUI() {
-        const isConfigured = window.SupabaseService && window.SupabaseService.isConfigured();
-        let user = null;
-        if (isConfigured) {
-            const session = await window.SupabaseService.getSession();
-            user = session?.user || null;
-        }
-        
-        // Cache state locally to prevent modal flashing
+        const session = await window.SupabaseService.getSession();
+        this.applyAuthUser(session?.user || null);
+    },
+
+    applyAuthUser(user) {
         this.currentUser = user;
-        this.authChecked = true;
+        const scope = window.SupabaseService.scopeFor(user);
+        try { MindSpaceStorage.setSyncSession(scope); }
+        catch (error) { this.showToast(error.message); }
+        this.renderSyncState();
+    },
 
-        const sidebarIcon = document.getElementById('sidebar-auth-icon');
-        const sidebarText = document.getElementById('sidebar-auth-text');
-        const mobileIcon = document.getElementById('mobile-auth-icon');
-        const sidebarBtn = document.getElementById('sidebar-auth-btn');
-        const mobileBtn = document.getElementById('mobile-auth-btn');
-        const btnSyncNow = document.getElementById('btn-sync-now');
-        const syncCardDesc = document.getElementById('sync-card-desc');
-        const settingsAuthBtn = document.getElementById('settings-auth-btn');
-
-        if (user) {
-            this.releaseAuthGate();
-            const shortEmail = user.email.split('@')[0];
-            if (sidebarText) sidebarText.innerText = `已登录(${shortEmail})`;
-            if (sidebarIcon) sidebarIcon.setAttribute('name', 'cloud-done-outline');
-            if (mobileIcon) mobileIcon.setAttribute('name', 'cloud-done-outline');
-            
-            if (sidebarBtn) {
-                sidebarBtn.classList.remove('offline');
-                sidebarBtn.classList.add('online');
-            }
-            if (mobileBtn) {
-                mobileBtn.classList.remove('offline');
-                mobileBtn.classList.add('online');
-            }
-
-            if (settingsAuthBtn) {
-                settingsAuthBtn.innerHTML = '<ion-icon name="person-outline"></ion-icon> 管理云账号 / 退出登录';
-                settingsAuthBtn.className = 'secondary-btn auth-status-btn';
-            }
-
-            if (btnSyncNow) btnSyncNow.classList.remove('hidden');
-            if (syncCardDesc) syncCardDesc.innerText = `已启用云同步账户: ${user.email}。您的数据将安全同步到您的个人云端。`;
+    renderSyncState(status) {
+        const user = this.currentUser;
+        const enabled = Boolean(MindSpaceStorage.activeScope);
+        const configured = window.SupabaseService.isConfigured();
+        const sidebar = document.getElementById('sidebar-auth-text');
+        sidebar.textContent = enabled ? '云同步已开启' : '本地模式';
+        for (const id of ['sidebar-auth-icon', 'mobile-auth-icon']) {
+            document.getElementById(id).setAttribute('name', enabled ? 'cloud-done-outline' : 'shield-checkmark-outline');
+        }
+        const authButton = document.getElementById('settings-auth-btn');
+        authButton.classList.toggle('hidden', !configured);
+        authButton.querySelector('span').textContent = user ? '管理云账户' : '登录云账户';
+        const toggle = document.getElementById('btn-sync-toggle');
+        toggle.classList.toggle('hidden', !user);
+        toggle.textContent = enabled ? '暂停自动同步' : '启用云同步';
+        document.getElementById('btn-forget-cloud').classList.toggle('hidden', !window.SupabaseService.getConfig().url);
+        const manual = document.getElementById('btn-sync-now');
+        manual.classList.toggle('hidden', !enabled);
+        manual.disabled = enabled && status === 'syncing';
+        const description = document.getElementById('sync-card-desc');
+        if (enabled) {
+            const pending = MindSpaceStorage.pendingCount();
+            description.textContent = status === 'syncing' ? '正在同步日记…'
+                : pending ? `${pending} 项日记变更待同步。练习统计保留在本机。`
+                : status === 'pending' ? '暂时无法同步，应用仍可在本机使用。'
+                : '日记会同步到你的云账户。练习统计保留在本机。';
         } else {
-            if (sidebarText) sidebarText.innerText = '未登录';
-            if (sidebarIcon) sidebarIcon.setAttribute('name', 'cloud-offline-outline');
-            if (mobileIcon) mobileIcon.setAttribute('name', 'cloud-offline-outline');
-
-            if (sidebarBtn) {
-                sidebarBtn.classList.remove('online');
-                sidebarBtn.classList.add('offline');
-            }
-            if (mobileBtn) {
-                mobileBtn.classList.remove('online');
-                mobileBtn.classList.add('offline');
-            }
-
-            if (settingsAuthBtn) {
-                settingsAuthBtn.innerHTML = '<ion-icon name="cloud-upload-outline"></ion-icon> 注册 / 登录云账号';
-                settingsAuthBtn.className = 'primary-btn auth-status-btn';
-            }
-
-            if (btnSyncNow) btnSyncNow.classList.add('hidden');
-            if (syncCardDesc) syncCardDesc.innerText = `当前数据保存在本地浏览器中。您可以配置云服务，开启多设备同步。`;
+            description.textContent = user ? '已登录。可选择是否将日记同步到这个云账户。' : '你可以连接自己的 Supabase 项目，在设备间同步日记。';
         }
+        if (status === 'synced') this.refreshCurrentView();
     },
 
-    enforceStartupAuth() {
-        const isConfigured = window.SupabaseService && window.SupabaseService.isConfigured();
-        if (!isConfigured || this.currentUser) {
-            this.releaseAuthGate();
+    openAuthModal() {
+        if (!window.SupabaseService.isConfigured()) {
+            this.openConfigModal();
             return;
         }
-
-        this.authGateActive = true;
-        document.body.classList.add('auth-gate-active');
-        this.openAuthModal({ force: true });
+        const signedIn = Boolean(this.currentUser);
+        document.getElementById('auth-modal-title').textContent = signedIn ? '云账户' : '登录云账户';
+        document.getElementById('logged-in-state').classList.toggle('hidden', !signedIn);
+        document.querySelector('.auth-tabs').classList.toggle('hidden', signedIn);
+        if (signedIn) {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('register-form').classList.add('hidden');
+            document.getElementById('user-display-email').textContent = this.currentUser.email;
+        } else this.switchAuthTab('login');
+        this.showOverlay('auth-modal');
     },
 
-    releaseAuthGate() {
-        this.authGateActive = false;
-        document.body.classList.remove('auth-gate-active');
-        const modal = document.getElementById('auth-modal');
-        if (modal) {
-            modal.dataset.forceAuth = 'false';
-        }
-    },
-
-    openAuthModal(options = {}) {
-        const isConfigured = window.SupabaseService && window.SupabaseService.isConfigured();
-        if (!isConfigured) {
-            this.showModal('数据库连接配置缺失', '本应用目前处于本地存储/离线模式。若要启用账号登录及云端同步服务，请先配置您的 Supabase 连接凭证。如果您是项目所有者，也可在 `js/config.js` 中直接写入凭证。', [
-                { text: '前往配置', class: 'primary-btn', onClick: () => {
-                    this.hideModal();
-                    this.openConfigModal();
-                }},
-                { text: '取消', class: 'secondary-btn', onClick: () => this.hideModal() }
-            ]);
-            return;
-        }
-
-        const modal = document.getElementById('auth-modal');
-        if (modal) {
-            const forceAuth = Boolean(options.force);
-            modal.dataset.forceAuth = forceAuth ? 'true' : 'false';
-            const loginForm = document.getElementById('login-form');
-            const registerForm = document.getElementById('register-form');
-            const loggedInState = document.getElementById('logged-in-state');
-            const userEmail = document.getElementById('user-display-email');
-            const tabs = document.querySelector('.auth-tabs');
-            const closeBtns = modal.querySelectorAll('.modal-close-btn');
-            const authLoading = document.getElementById('auth-loading');
-
-            // Collapse change password form by default
-            const changePwdForm = document.getElementById('change-pwd-form');
-            const toggleBtn = document.getElementById('btn-toggle-change-pwd');
-            if (changePwdForm) changePwdForm.classList.add('hidden');
-            if (toggleBtn) toggleBtn.classList.remove('hidden');
-
-            // Synchronously show state based on cached credentials to prevent flashing
-            if (this.authChecked) {
-                if (authLoading) authLoading.classList.add('hidden');
-                if (loginForm) this.clearFormErrors(loginForm);
-                if (registerForm) this.clearFormErrors(registerForm);
-                if (this.currentUser) {
-                    closeBtns.forEach(btn => btn.classList.remove('hidden'));
-                    if (loginForm) loginForm.classList.add('hidden');
-                    if (registerForm) registerForm.classList.add('hidden');
-                    if (tabs) tabs.classList.add('hidden');
-                    if (loggedInState) loggedInState.classList.remove('hidden');
-                    if (userEmail) userEmail.innerText = this.currentUser.email;
-                } else {
-                    closeBtns.forEach(btn => btn.classList.toggle('hidden', forceAuth));
-                    if (loginForm) loginForm.classList.remove('hidden');
-                    if (registerForm) registerForm.classList.add('hidden');
-                    if (tabs) tabs.classList.remove('hidden');
-                    if (loggedInState) loggedInState.classList.add('hidden');
-                    this.switchAuthTab('login');
-                }
-            } else {
-                // If auth is not checked yet, show a clean loading state
-                if (authLoading) authLoading.classList.remove('hidden');
-                if (loginForm) loginForm.classList.add('hidden');
-                if (registerForm) registerForm.classList.add('hidden');
-                if (tabs) tabs.classList.add('hidden');
-                if (loggedInState) loggedInState.classList.add('hidden');
-                closeBtns.forEach(btn => btn.classList.toggle('hidden', forceAuth));
-            }
-
-            modal.classList.remove('hidden');
-
-            // Query background getUser to ensure state is fresh and correct
-            window.SupabaseService.getUser().then(user => {
-                this.currentUser = user;
-                this.authChecked = true;
-
-                if (authLoading) authLoading.classList.add('hidden');
-                if (user) {
-                    this.releaseAuthGate();
-                    if (loginForm) loginForm.classList.add('hidden');
-                    if (registerForm) registerForm.classList.add('hidden');
-                    if (tabs) tabs.classList.add('hidden');
-                    if (loggedInState) loggedInState.classList.remove('hidden');
-                    if (userEmail) userEmail.innerText = user.email;
-                    closeBtns.forEach(btn => btn.classList.remove('hidden'));
-                } else {
-                    closeBtns.forEach(btn => btn.classList.toggle('hidden', forceAuth));
-                    if (loggedInState) loggedInState.classList.add('hidden');
-                    if (tabs) tabs.classList.remove('hidden');
-                    // Avoid switching tab if user has toggled to register
-                    const isRegVisible = registerForm && !registerForm.classList.contains('hidden');
-                    if (!forceAuth && isRegVisible) {
-                        this.switchAuthTab('register');
-                    } else {
-                        this.switchAuthTab('login');
-                    }
-                }
-            });
-        }
-    },
-
-    /**
-     * Legacy hook kept for older integrations.
-     */
-    async checkForceAuth() {
-        this.enforceStartupAuth();
-        return this.currentUser;
-    },
-
-    /**
-     * Open Supabase connection config modal
-     */
     openConfigModal() {
-        const modal = document.getElementById('cloud-config-modal');
-        if (modal) {
-            modal.classList.remove('hidden');
-            const config = window.SupabaseService.getConfig();
-            const configUrl = document.getElementById('config-url');
-            const configKey = document.getElementById('config-anon-key');
-            if (configUrl) configUrl.value = config.url || '';
-            if (configKey) configKey.value = config.anonKey || '';
-        }
+        const { url, anonKey } = window.SupabaseService.getConfig();
+        document.getElementById('config-url').value = url;
+        document.getElementById('config-anon-key').value = anonKey;
+        document.getElementById('config-error').textContent = '';
+        this.showOverlay('cloud-config-modal');
     },
 
     /**
@@ -1630,241 +1797,178 @@ const app = {
     /**
      * Save configuration fields
      */
-    saveConfig() {
+    async saveConfig() {
         const url = document.getElementById('config-url').value.trim();
-        const anonKey = document.getElementById('config-anon-key').value.trim();
-        
-        if (!url || !anonKey) {
-            app.showModal('配置不完整', '请完整填写 Supabase API URL 与 Anon Key 后再保存。', [
-                { text: '好的', class: 'secondary-btn', onClick: () => app.hideModal() }
-            ]);
-            return;
-        }
-
-        const success = window.SupabaseService.saveConfig(url, anonKey);
-        if (success) {
-            document.getElementById('cloud-config-modal').classList.add('hidden');
-            this.updateAuthUI();
-            this.showModal('配置成功', 'Supabase 客户端连接成功！您现在可以登录或注册账户以同步数据。', [
-                { text: '好的', class: 'secondary-btn', onClick: () => this.hideModal() }
-            ]);
-        } else {
-            app.showModal('连接失败', '客户端初始化失败，请检查 Supabase API URL 或 Anon Key 格式是否正确。', [
-                { text: '确定', class: 'secondary-btn', onClick: () => app.hideModal() }
-            ]);
-        }
-    },
-
-    /**
-     * Handle user Login
-     */
-    async handleLogin(e) {
-        e.preventDefault();
-        if (!this.validateAuthForm(e.currentTarget, 'login')) return;
-
-        const email = document.getElementById('login-email').value.trim();
-        const password = document.getElementById('login-password').value;
-
+        const key = document.getElementById('config-anon-key').value.trim();
+        const button = document.getElementById('btn-save-config');
+        const status = document.getElementById('config-error');
+        button.disabled = true;
+        status.textContent = '';
         try {
-            await window.SupabaseService.signIn(email, password);
-            document.getElementById('auth-modal').classList.add('hidden');
-            this.releaseAuthGate();
-            this.forceRepaint();
+            if (!url || !key) throw new Error('请输入项目地址和公钥。');
+            if (!await window.SupabaseService.saveConfig(url, key)) return;
+            MindSpaceStorage.setSyncSession(null);
+            this.closeOverlay('cloud-config-modal');
             await this.updateAuthUI();
-
-            // Prompt user to sync local logs to cloud
-            const localLogs = MindSpaceStorage.getLogs();
-            if (localLogs.length > 0) {
-                this.showModal('登录成功', '您已成功登录！检测到本地存有天气与心情记录，是否将它们合并导入到您的云端账户？', [
-                    { text: '暂不合并', class: 'secondary-btn', onClick: () => {
-                        this.hideModal();
-                        window.location.reload();
-                    }},
-                    { text: '立即合并同步', class: 'primary-btn', onClick: async () => {
-                        this.showModal('同步中', '正在将您的本地记录同步至云端...', []);
-                        try {
-                            await MindSpaceStorage.syncLocalToCloud();
-                            this.hideModal();
-                            this.showModal('同步完成', '所有本地天气日志已完美合并至云端账号！', [
-                                { text: '进入首页', class: 'primary-btn', onClick: () => {
-                                    this.hideModal();
-                                    window.location.reload();
-                                }}
-                            ]);
-                        } catch (err) {
-                            console.error(err);
-                            this.showModal('同步失败', '同步过程中出现错误，请重试：' + escapeHTML(err.message), [
-                                { text: '确定', class: 'secondary-btn', onClick: () => this.hideModal() }
-                            ]);
-                        }
-                    }}
-                ]);
-            } else {
-                // Fetch cloud logs down to local anyway
-                await MindSpaceStorage.syncLocalToCloud();
-                window.location.reload();
-            }
-        } catch (err) {
-            let msg = err.message || '';
-            if (msg.includes('Email not confirmed') || msg.toLowerCase().includes('confirm') || msg.toLowerCase().includes('verify') || msg.toLowerCase().includes('code') || msg.toLowerCase().includes('otp')) {
-                msg = '邮箱尚未激活或密码错误，请检查您的账户信息。';
-            }
-            app.showModal('登录失败', escapeHTML(msg), [
-                { text: '确定', class: 'secondary-btn', onClick: () => app.hideModal() }
-            ]);
+            this.openAuthModal();
+        } catch (error) {
+            status.textContent = error.message;
+        } finally {
+            button.disabled = false;
         }
     },
 
-    /**
-     * Handle user Registration
-     */
-    async handleRegister(e) {
-        e.preventDefault();
-        if (!this.validateAuthForm(e.currentTarget, 'register')) return;
+    handleLogin(event) {
+        return this.submitAuth(event, 'login');
+    },
 
-        const email = document.getElementById('reg-email').value.trim();
-        const password = document.getElementById('reg-password').value;
+    handleRegister(event) {
+        return this.submitAuth(event, 'register');
+    },
 
+    async submitAuth(event, mode) {
+        event.preventDefault();
+        const form = event.currentTarget;
+        if (!this.validateAuthForm(form, mode)) return;
+        const register = mode === 'register';
+        const prefix = register ? 'reg' : 'login';
+        const email = document.getElementById(`${prefix}-email`).value.trim();
+        const password = document.getElementById(`${prefix}-password`);
+        const button = form.querySelector('[type="submit"]');
+        if (button.disabled) return;
+        button.disabled = true;
         try {
-            const data = await window.SupabaseService.signUp(email, password);
-            const user = data?.user || await window.SupabaseService.getUser();
-
-            if (user) {
-                // Successfully registered and auto-logged in (since email confirmation is disabled)
-                document.getElementById('auth-modal').classList.add('hidden');
-                this.releaseAuthGate();
-                this.forceRepaint();
-                await this.updateAuthUI();
-
-                // Prompt user to sync local logs to cloud
-                const localLogs = MindSpaceStorage.getLogs();
-                if (localLogs.length > 0) {
-                    this.showModal('注册并登录成功', '您的账号注册成功并已自动登录！检测到本地存有天气与心情记录，是否将它们合并导入到您的云端账户？', [
-                        { text: '暂不合并', class: 'secondary-btn', onClick: () => {
-                            this.hideModal();
-                            window.location.reload();
-                        }},
-                        { text: '立即合并同步', class: 'primary-btn', onClick: async () => {
-                            this.showModal('同步中', '正在将您的本地记录同步至云端...', []);
-                            try {
-                                await MindSpaceStorage.syncLocalToCloud();
-                                this.hideModal();
-                                this.showModal('同步完成', '所有本地天气日志已完美合并至云端账号！', [
-                                    { text: '进入首页', class: 'primary-btn', onClick: () => {
-                                        this.hideModal();
-                                        window.location.reload();
-                                    }}
-                                ]);
-                            } catch (err) {
-                                console.error(err);
-                                this.showModal('同步失败', '同步过程中出现错误，请重试：' + escapeHTML(err.message), [
-                                    { text: '确定', class: 'secondary-btn', onClick: () => this.hideModal() }
-                                ]);
-                            }
-                        }}
-                    ]);
-                } else {
-                    await MindSpaceStorage.syncLocalToCloud();
-                    window.location.reload();
-                }
-            } else {
-                // If email confirmation is somehow still active
-                document.getElementById('auth-modal').classList.add('hidden');
-                this.forceRepaint();
-                this.showModal('注册成功', '您的账号已成功注册，立即登录开启您的心空旅程吧。', [
-                    { text: '去登录', class: 'primary-btn', onClick: () => {
-                        this.hideModal();
-                        this.openAuthModal();
-                    }}
-                ]);
-            }
-        } catch (err) {
-            let msg = err.message || '';
-            if (msg.toLowerCase().includes('confirm') || msg.toLowerCase().includes('verify') || msg.toLowerCase().includes('code') || msg.toLowerCase().includes('otp')) {
-                msg = '账号创建失败，请检查输入信息或稍后重试。';
-            }
-            app.showModal('注册失败', escapeHTML(msg), [
-                { text: '确定', class: 'secondary-btn', onClick: () => app.hideModal() }
-            ]);
+            const service = window.SupabaseService;
+            const data = register ? await service.signUp(email, password.value) : await service.signIn(email, password.value);
+            password.value = '';
+            this.closeOverlay('auth-modal');
+            await this.updateAuthUI();
+            this.showToast(register && !data.session ? '请打开邮箱确认账户，然后登录。' : '已登录云账户');
+        } catch (error) {
+            this.setFieldError(password, error.code === 'email_not_confirmed' ? '请先打开邮箱确认账户。' : error.message);
+        } finally {
+            button.disabled = false;
         }
     },
 
-    /**
-     * Handle Sign Out
-     */
     async handleSignOut() {
         try {
             await window.SupabaseService.signOut();
-            document.getElementById('auth-modal').classList.add('hidden');
-            this.forceRepaint();
-            
-            this.showModal('已退出登录', '账户已成功退出。本地保存的随笔记录依然保留。', [
-                { text: '确定', class: 'secondary-btn', onClick: () => {
-                    this.hideModal();
-                    window.location.reload();
-                }}
-            ]);
-        } catch (err) {
-            app.showModal('退出失败', '退出登录过程中发生了错误：' + escapeHTML(err.message), [
-                { text: '确定', class: 'secondary-btn', onClick: () => app.hideModal() }
-            ]);
+            this.closeOverlay('auth-modal');
+            await this.updateAuthUI();
+            this.showToast('已退出云账户，本机数据已保留');
+        } catch (error) {
+            this.showToast(error.message);
         }
     },
 
-    /**
-     * Handle Manual Sync Trigger
-     */
+    toggleSync() {
+        const scope = window.SupabaseService.scopeFor(this.currentUser);
+        if (MindSpaceStorage.activeScope) {
+            MindSpaceStorage.pauseSync(scope);
+            this.renderSyncState();
+            this.showToast('已暂停自动同步');
+            return;
+        }
+        const account = escapeHTML(this.currentUser?.email || '');
+        const destination = account ? `云账户 <strong>${account}</strong>` : '当前云账户';
+        this.showModal('开启云同步', `<p>开启后，新日记会上传至${destination}。也可以一并上传尚未同步的本机日记。</p>
+            <label class="option-toggle sync-consent"><input type="checkbox" id="sync-include-local"><span class="toggle-slider"></span><span>上传现有本机日记</span></label>`, [
+            { text: '取消', onClick: () => this.hideModal() },
+            { text: '启用同步', class: 'primary-btn', onClick: async () => {
+                const includeLocal = document.getElementById('sync-include-local').checked;
+                this.hideModal();
+                try {
+                    await MindSpaceStorage.enableSync(includeLocal, scope);
+                    this.renderSyncState('synced');
+                    this.showToast('云同步已开启');
+                } catch (error) {
+                    this.renderSyncState('pending');
+                    this.showToast(error.message);
+                }
+            }}
+        ]);
+    },
+
     async handleManualSync() {
-        this.showModal('云端同步', '正在合并本地与云端的心情天气数据...', []);
         try {
             await MindSpaceStorage.syncLocalToCloud();
-            this.hideModal();
-            this.showModal('同步完成', '您的所有天气日志已完美在本地与云端合并！', [
-                { text: '确定', class: 'primary-btn', onClick: () => {
-                    this.hideModal();
-                    window.location.reload();
-                }}
-            ]);
-        } catch (err) {
-            console.error(err);
-            this.showModal('同步失败', '同步过程中出现错误，请检查网络或配置：' + escapeHTML(err.message), [
-                { text: '确定', class: 'secondary-btn', onClick: () => this.hideModal() }
-            ]);
+            this.showToast('日记已同步');
+        } catch (error) {
+            this.renderSyncState('pending');
+            this.showToast(error.message);
         }
     },
 
-    /**
-     * Modular Custom Dialog System
-     */
     showModal(title, bodyHtml, actions = []) {
-        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-title').textContent = title;
         document.getElementById('modal-body').innerHTML = bodyHtml;
-        
-        const actionsContainer = document.getElementById('modal-actions');
-        actionsContainer.innerHTML = '';
-
-        actions.forEach(action => {
-            const btn = document.createElement('button');
-            btn.className = action.class || 'secondary-btn';
-            btn.innerText = action.text;
-            btn.addEventListener('click', action.onClick);
-            actionsContainer.appendChild(btn);
-        });
-
-        document.getElementById('modal-container').classList.remove('hidden');
+        document.getElementById('modal-actions').replaceChildren(...actions.map(action => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = action.class || 'secondary-btn';
+            button.textContent = action.text;
+            button.addEventListener('click', action.onClick);
+            return button;
+        }));
+        this.showOverlay('modal-container');
     },
 
     hideModal() {
-        document.getElementById('modal-container').classList.add('hidden');
-        this.forceRepaint();
+        this.closeOverlay('modal-container');
     },
 
-    forceRepaint() {
-        const container = document.getElementById('app-container');
-        if (container) {
-            container.style.transform = 'translate3d(0, 0, 0.1px)';
-            container.offsetHeight; // trigger reflow
-            container.style.transform = 'translate3d(0, 0, 0)';
+    showOverlay(id) {
+        const overlay = document.getElementById(id);
+        if (this.overlays.at(-1)?.overlay !== overlay) {
+            this.overlays.push({ overlay, previousFocus: document.activeElement });
+        }
+        overlay.classList.remove('hidden');
+        this.updateOverlays();
+        const heading = overlay.querySelector('.modal-header h3');
+        heading.tabIndex = -1;
+        heading.focus({ preventScroll: true });
+    },
+
+    closeOverlay(id) {
+        const index = this.overlays.findIndex(item => item.overlay.id === id);
+        if (index < 0) return;
+        const wasTop = index === this.overlays.length - 1;
+        const [{ overlay, previousFocus }] = this.overlays.splice(index, 1);
+        overlay.classList.add('hidden');
+        overlay.inert = false;
+        overlay.style.removeProperty('z-index');
+        this.updateOverlays();
+        if (wasTop && previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    },
+
+    updateOverlays() {
+        document.getElementById('app-container').inert = Boolean(this.overlays.length);
+        this.overlays.forEach(({ overlay }, index) => {
+            overlay.inert = index !== this.overlays.length - 1;
+            overlay.style.zIndex = 10 + index;
+        });
+    },
+
+    handleOverlayKey(event) {
+        const top = this.overlays.at(-1)?.overlay;
+        if (!top) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            this.closeOverlay(top.id);
+            return;
+        }
+        if (event.key !== 'Tab') return;
+        const focusable = [...top.querySelectorAll('a[href], button, input, textarea, select')]
+            .filter(element => !element.disabled && element.getClientRects().length);
+        const first = focusable[0];
+        const last = focusable.at(-1);
+        if (event.shiftKey && (document.activeElement === first || !focusable.includes(document.activeElement))) {
+            event.preventDefault();
+            last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
         }
     }
 };

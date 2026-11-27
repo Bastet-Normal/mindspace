@@ -1,8 +1,5 @@
-/**
- * MindSpace - Local Storage Controller
- * Manages off-line user data with absolute privacy.
- */
 const MindSpaceStorage = {
+    KEY: 'mindspace_library_v2',
     KEYS: {
         LOGS: 'mindspace_mood_logs',
         SETTINGS: 'mindspace_user_settings',
@@ -10,203 +7,13 @@ const MindSpaceStorage = {
         HISTORY: 'mindspace_stats_history'
     },
 
-    // Default settings
     DEFAULT_SETTINGS: {
         userName: '旅人',
-        theme: 'light',
+        theme: null,
+        journalFont: null,
         customTags: ['疲惫', '焦虑', '平静', '喜悦', '心累', '感恩', '成长', '人际']
     },
 
-    /**
-     * Get user settings
-     */
-    getSettings() {
-        const stored = localStorage.getItem(this.KEYS.SETTINGS);
-        if (!stored) {
-            this.saveSettings(this.DEFAULT_SETTINGS);
-            return this.DEFAULT_SETTINGS;
-        }
-        try {
-            return { ...this.DEFAULT_SETTINGS, ...JSON.parse(stored) };
-        } catch (e) {
-            return this.DEFAULT_SETTINGS;
-        }
-    },
-
-    /**
-     * Save user settings
-     */
-    saveSettings(settings) {
-        localStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(settings));
-    },
-
-    /**
-     * Get all mood logs, sorted descending by timestamp
-     */
-    getLogs() {
-        const stored = localStorage.getItem(this.KEYS.LOGS);
-        if (!stored) return [];
-        try {
-            const logs = JSON.parse(stored);
-            return logs.sort((a, b) => b.timestamp - a.timestamp);
-        } catch (e) {
-            return [];
-        }
-    },
-
-    /**
-     * Generate RFC4122 v4 compliant UUID
-     */
-    generateUUID() {
-        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-            try {
-                return crypto.randomUUID();
-            } catch (e) {
-                // Fallback below
-            }
-        }
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
-    },
-
-    /**
-     * Save a single mood log
-     */
-    async saveLog(weather, tags = [], note = '') {
-        const logs = this.getLogs();
-        const newLog = {
-            id: this.generateUUID(),
-            timestamp: Date.now(),
-            weather: weather,
-            tags: tags,
-            note: note.trim()
-        };
-        logs.push(newLog);
-        localStorage.setItem(this.KEYS.LOGS, JSON.stringify(logs));
-
-        // Sync to Supabase if configured and logged in
-        if (window.SupabaseService && window.SupabaseService.isConfigured()) {
-            try {
-                await window.SupabaseService.uploadLog(newLog);
-            } catch (e) {
-                console.error("Failed to sync log to Supabase:", e);
-            }
-        }
-
-        return newLog;
-    },
-
-    /**
-     * Delete a mood log by ID
-     */
-    async deleteLog(id) {
-        let logs = this.getLogs();
-        logs = logs.filter(log => log.id !== id);
-        localStorage.setItem(this.KEYS.LOGS, JSON.stringify(logs));
-
-        // Sync to Supabase if configured and logged in
-        if (window.SupabaseService && window.SupabaseService.isConfigured()) {
-            try {
-                await window.SupabaseService.deleteLog(id);
-            } catch (e) {
-                console.error("Failed to delete log from Supabase:", e);
-            }
-        }
-    },
-
-    /**
-     * Synchronize local logs to cloud (converting non-UUIDs) and pull cloud logs to merge
-     */
-    async syncLocalToCloud() {
-        if (!window.SupabaseService || !window.SupabaseService.isConfigured()) {
-            throw new Error("Supabase is not configured.");
-        }
-
-        let logs = this.getLogs();
-        let updated = false;
-
-        // Convert non-UUID logs to UUID
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        logs = logs.map(log => {
-            if (!log.id || !uuidRegex.test(log.id)) {
-                log.id = this.generateUUID();
-                updated = true;
-            }
-            return log;
-        });
-
-        if (updated) {
-            localStorage.setItem(this.KEYS.LOGS, JSON.stringify(logs));
-        }
-
-        // 1. Upload local logs to Cloud
-        if (logs.length > 0) {
-            await window.SupabaseService.bulkUploadLogs(logs);
-        }
-
-        // 2. Fetch all logs from Cloud
-        const cloudLogs = await window.SupabaseService.fetchLogs();
-
-        // 3. Merge Cloud logs with local logs
-        const mergedMap = new Map();
-        logs.forEach(log => mergedMap.set(log.id, log));
-
-        cloudLogs.forEach(cLog => {
-            const formattedLog = {
-                id: cLog.id,
-                timestamp: Number(cLog.timestamp),
-                weather: cLog.weather,
-                tags: cLog.tags || [],
-                note: cLog.note || ''
-            };
-            mergedMap.set(formattedLog.id, formattedLog);
-        });
-
-        const mergedLogs = Array.from(mergedMap.values()).sort((a, b) => b.timestamp - a.timestamp);
-        localStorage.setItem(this.KEYS.LOGS, JSON.stringify(mergedLogs));
-        return mergedLogs;
-    },
-
-    /**
-     * Clear all user data completely
-     */
-    clearAllData() {
-        localStorage.removeItem(this.KEYS.LOGS);
-        localStorage.removeItem(this.KEYS.SETTINGS);
-        localStorage.removeItem(this.KEYS.STATS);
-        localStorage.removeItem(this.KEYS.HISTORY);
-        // Also clear Supabase configuration and session data
-        localStorage.removeItem('supabase_url');
-        localStorage.removeItem('supabase_anon_key');
-        // Clear any Supabase auth session keys (they use a prefix pattern)
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
-                keysToRemove.push(key);
-            }
-        }
-        keysToRemove.forEach(key => localStorage.removeItem(key));
-    },
-
-    /**
-     * Format a timestamp to local date string (e.g. 2026-05-22 14:00)
-     */
-    formatDate(timestamp) {
-        const date = new Date(timestamp);
-        const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const d = String(date.getDate()).padStart(2, '0');
-        const hr = String(date.getHours()).padStart(2, '0');
-        const min = String(date.getMinutes()).padStart(2, '0');
-        return `${y}-${m}-${d} ${hr}:${min}`;
-    },
-
-    /**
-     * Weather translations & emoji markers for text outputs
-     */
     WEATHER_MAP: {
         sunny: { name: '晴朗', emoji: '☀️' },
         breezy: { name: '微风', emoji: '🍃' },
@@ -216,313 +23,814 @@ const MindSpaceStorage = {
         stormy: { name: '雷雨', emoji: '⛈️' }
     },
 
-    /**
-     * Get mindfulness statistics for today
-     */
-    getTodayStats() {
-        const d = new Date();
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const dateVal = String(d.getDate()).padStart(2, '0');
-        const formattedDate = `${y}-${m}-${dateVal}`;
+    UUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    DATE: /^\d{4}-\d{2}-\d{2}$/,
+    JOURNAL_FONTS: ['system', 'song', 'kai', 'fangsong', 'xihei', 'ipaex'],
+    activeScope: null,
+    activeConsent: null,
+    sessionScope: undefined,
+    syncGeneration: 0,
+    inFlight: null,
+    inFlightGeneration: null,
+    retryTimer: null,
+    retryFailures: 0,
 
-        const stored = localStorage.getItem(this.KEYS.STATS);
-        const defaultStats = { date: formattedDate, breathingSeconds: 0, focusSeconds: 0 };
-        
-        if (!stored) {
-            localStorage.setItem(this.KEYS.STATS, JSON.stringify(defaultStats));
-            return defaultStats;
-        }
-        try {
-            const stats = JSON.parse(stored);
-            if (stats.date !== formattedDate) {
-                localStorage.setItem(this.KEYS.STATS, JSON.stringify(defaultStats));
-                return defaultStats;
+    generateUUID() {
+        if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+        const bytes = new Uint8Array(16);
+        if (globalThis.crypto?.getRandomValues) crypto.getRandomValues(bytes);
+        else bytes.forEach((_, index) => { bytes[index] = Math.floor(Math.random() * 256); });
+        bytes[6] = (bytes[6] & 15) | 64;
+        bytes[8] = (bytes[8] & 63) | 128;
+        const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+        return this.formatUUID(hex);
+    },
+
+    formatUUID(hex) {
+        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    },
+
+    logId(id) {
+        if (this.UUID.test(id)) return id.toLowerCase();
+        // Keep old local identifiers stable across upgrades and repeat imports.
+        const hex = [0, 1, 2, 3].map(salt => {
+            let hash = 2166136261;
+            for (const character of `${salt}:${id}`) {
+                hash = Math.imul(hash ^ character.codePointAt(0), 16777619);
             }
-            return stats;
-        } catch (e) {
-            localStorage.setItem(this.KEYS.STATS, JSON.stringify(defaultStats));
-            return defaultStats;
+            return (hash >>> 0).toString(16).padStart(8, '0');
+        }).join('');
+        return this.formatUUID(`${hex.slice(0, 12)}5${hex.slice(13, 16)}a${hex.slice(17)}`);
+    },
+
+    readLegacy(key, fallback) {
+        try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
+        catch { return fallback; }
+    },
+
+    moods(value) {
+        const choices = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [];
+        if (choices.length > 2 || new Set(choices).size !== choices.length ||
+            [...choices].some(key => typeof key !== 'string' || !Object.hasOwn(this.WEATHER_MAP, key))) return [];
+        return choices;
+    },
+
+    moodName(value) {
+        return this.moods(value).map(key => this.WEATHER_MAP[key].name).join('、');
+    },
+
+    moodWeights(logs) {
+        const weights = Object.fromEntries(Object.keys(this.WEATHER_MAP).map(key => [key, 0]));
+        for (const log of logs) {
+            const moods = this.moods(log.weather);
+            for (const mood of moods) weights[mood] += 1 / moods.length;
         }
+        return Object.entries(weights).filter(([, weight]) => weight > 0).sort(([, a], [, b]) => b - a);
     },
 
-    /**
-     * Save statistics for today
-     */
-    saveTodayStats(stats) {
-        localStorage.setItem(this.KEYS.STATS, JSON.stringify(stats));
+    normalizeLog(log) {
+        if (!log || typeof log.id !== 'string' || !log.id || log.id.length > 200) return null;
+        const moods = this.moods(log.weather);
+        if (!moods.length) return null;
+        const value = log.timestamp;
+        const timestamp = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+        if (!Number.isSafeInteger(timestamp) || timestamp < 0 || timestamp > 8640000000000000) return null;
+        const note = typeof log.note === 'string' ? log.note : '';
+        const fontRuns = this.normalizeFontRuns(log.fontRuns ?? log.font_runs, note.length);
+        return {
+            id: this.logId(log.id),
+            timestamp,
+            weather: moods.join(','),
+            tags: this.normalizeTags(log.tags),
+            note,
+            ...(fontRuns.length ? { fontRuns } : {})
+        };
     },
 
-    /**
-     * Get mindfulness statistics history
-     */
-    getHistoryStats() {
-        const stored = localStorage.getItem(this.KEYS.HISTORY);
-        if (!stored) return {};
+    normalizeFontRuns(runs, length) {
+        if (!Array.isArray(runs)) return [];
+        const result = [];
+        for (const run of runs) {
+            if (!Number.isInteger(run?.start) || run.start < 0 || run.start >= length ||
+                !this.JOURNAL_FONTS.includes(run.font)) continue;
+            const previous = result.at(-1);
+            if (!previous && run.start !== 0) continue;
+            if (previous && (run.start <= previous.start || run.font === previous.font)) continue;
+            result.push({ start: run.start, font: run.font });
+        }
+        return result;
+    },
+
+    trimmedNote(text, runs) {
+        const note = text.trim();
+        const offset = text.length - text.trimStart().length;
+        const fontRuns = [];
+        for (const run of this.normalizeFontRuns(runs, text.length)) {
+            if (run.start >= offset + note.length) break;
+            if (run.start <= offset) fontRuns.length = 0;
+            fontRuns.push({ start: Math.max(0, run.start - offset), font: run.font });
+        }
+        return { note, fontRuns };
+    },
+
+    normalizeTags(tags) {
+        return Array.isArray(tags)
+            ? [...new Set(tags.filter(tag => typeof tag === 'string' && tag.trim()).map(tag => tag.trim()))]
+            : [];
+    },
+
+    normalizeSettings(settings) {
+        const value = settings && typeof settings === 'object' ? settings : {};
+        return {
+            userName: typeof value.userName === 'string' && value.userName.trim() ? value.userName.trim() : this.DEFAULT_SETTINGS.userName,
+            theme: ['light', 'dark'].includes(value.theme) ? value.theme : null,
+            journalFont: this.JOURNAL_FONTS.includes(value.journalFont) ? value.journalFont : this.DEFAULT_SETTINGS.journalFont,
+            customTags: this.normalizeTags(value.customTags ?? this.DEFAULT_SETTINGS.customTags)
+        };
+    },
+
+    isRecord(value) {
+        return !!value && typeof value === 'object' && !Array.isArray(value);
+    },
+
+    normalizeHistory(history) {
+        if (!this.isRecord(history)) return {};
+        return Object.fromEntries(Object.entries(history)
+            .filter(([date, value]) => this.DATE.test(date) && value && typeof value === 'object')
+            .map(([date, value]) => [date, {
+                breathingSeconds: this.validSeconds(value.breathingSeconds),
+                focusSeconds: this.validSeconds(value.focusSeconds)
+            }]));
+    },
+
+    validSeconds(value) {
+        return Number.isSafeInteger(value) && value > 0 ? Math.min(value, 86400) : 0;
+    },
+
+    mergeDay(a = {}, b = {}) {
+        return {
+            breathingSeconds: Math.max(a.breathingSeconds || 0, b.breathingSeconds || 0),
+            focusSeconds: Math.max(a.focusSeconds || 0, b.focusSeconds || 0)
+        };
+    },
+
+    fromLegacy(rawLogs) {
+        const settings = this.normalizeSettings(this.readLegacy(this.KEYS.SETTINGS, {}));
+        const history = this.normalizeHistory(this.readLegacy(this.KEYS.HISTORY, {}));
+        const today = this.readLegacy(this.KEYS.STATS, {});
+        if (this.DATE.test(today.date)) {
+            const day = this.normalizeHistory({ [today.date]: today })[today.date];
+            history[today.date] = this.mergeDay(history[today.date], day);
+        }
+        const source = this.generateUUID();
+        return {
+            version: 2, source, settings, history: { [source]: history },
+            logs: Array.isArray(rawLogs) ? rawLogs.map(log => this.normalizeLog(log)).filter(Boolean) : [],
+            owners: {}, pending: {}, consents: {}
+        };
+    },
+
+    read() {
+        const data = localStorage.getItem(this.KEY);
+        if (data == null) {
+            const rawLogs = this.readLegacy(this.KEYS.LOGS, null);
+            const state = this.fromLegacy(rawLogs);
+            this.write(state);
+
+            for (const [kind, key] of Object.entries(this.KEYS)) {
+                const parsed = kind === 'LOGS' ? rawLogs : this.readLegacy(key, null);
+                const migrated = kind === 'LOGS'
+                    ? Array.isArray(parsed) && parsed.length === state.logs.length
+                    : this.isRecord(parsed);
+                if (migrated) {
+                    try { localStorage.removeItem(key); }
+                    catch { /* The migrated library has been committed successfully. */ }
+                }
+            }
+            return state;
+        }
         try {
-            return JSON.parse(stored);
-        } catch (e) {
-            return {};
+            const state = JSON.parse(data);
+            if (state.version !== 2 || !this.UUID.test(state.source) || !Array.isArray(state.logs) ||
+                ![state.owners, state.pending, state.history, state.consents, state.settings].every(value => this.isRecord(value))) {
+                throw new Error();
+            }
+            return state;
+        } catch {
+            throw new Error('本机记录无法读取，原始数据仍保留。');
         }
     },
 
-    /**
-     * Update history stats for a specific day and metric
-     */
-    updateHistoryStats(dateStr, key, deltaSeconds) {
-        const history = this.getHistoryStats();
-        if (!history[dateStr]) {
-            history[dateStr] = { breathingSeconds: 0, focusSeconds: 0 };
-        }
-        history[dateStr][key] = (history[dateStr][key] || 0) + deltaSeconds;
-        localStorage.setItem(this.KEYS.HISTORY, JSON.stringify(history));
+    write(state) {
+        try { localStorage.setItem(this.KEY, JSON.stringify(state)); }
+        catch { throw new Error('无法写入本机存储。请先备份，再检查剩余空间。'); }
     },
 
-    /**
-     * Get cumulative statistics (totals & active streak)
-     */
+    getSettings() {
+        try { return this.normalizeSettings(this.read().settings); }
+        catch { return this.normalizeSettings({}); }
+    },
+
+    saveSettings(settings) {
+        const state = this.read();
+        state.settings = this.normalizeSettings(settings);
+        this.write(state);
+    },
+
+    getLogs() {
+        try {
+            return this.read().logs.map(log => this.normalizeLog(log)).filter(Boolean).sort((a, b) => b.timestamp - a.timestamp);
+        } catch { return []; }
+    },
+
+    saveLog(weather, tags = [], note = '', timestamp = Date.now(), fontRuns) {
+        return this.putLog({ id: this.generateUUID(), timestamp, weather, tags, ...this.trimmedNote(note, fontRuns) }, 'create');
+    },
+
+    updateLog(id, weather, tags = [], note = '', { expected, timestamp, fontRuns } = {}) {
+        const original = this.getLogs().find(log => log.id === id);
+        const body = this.trimmedNote(note, fontRuns ?? (original?.note === note ? original.fontRuns : undefined));
+        if (expected && (!original || !this.sameLog(expected, original))) {
+            return this.putLog({ id: this.generateUUID(), timestamp: timestamp ?? expected.timestamp, weather, tags, ...body }, 'create', null);
+        }
+        if (!original) throw new Error('这条记录已经不存在。');
+        return this.putLog({ ...original, timestamp: timestamp ?? original.timestamp, weather, tags, ...body }, 'update');
+    },
+
+    putLog(input, action, owner) {
+        const log = this.normalizeLog(input);
+        if (!log) throw new Error('记录格式有误。');
+        const state = this.read();
+        const index = state.logs.findIndex(item => item.id === log.id);
+        const previous = state.logs[index];
+        if (index < 0) state.logs.push(log);
+        else state.logs[index] = log;
+        const createScope = action === 'create' && this.activeScope &&
+            state.consents[this.activeScope] === this.activeConsent ? this.activeScope : null;
+        const scope = state.owners[log.id] || (owner === undefined ? createScope : owner);
+        if (scope) {
+            state.owners[log.id] = scope;
+            const pending = state.pending[log.id];
+            const next = ['create', 'adopt'].includes(pending?.action) ? 'create' : action;
+            this.queue(state, log.id, scope, next, pending ? pending.base : previous);
+        }
+        this.write(state);
+        this.requestSync();
+        return log;
+    },
+
+    deleteLog(id) {
+        const state = this.read();
+        const log = state.logs.find(item => item.id === id);
+        if (!log) return null;
+        const scope = state.owners[id] || null;
+        state.logs = state.logs.filter(item => item.id !== id);
+        if (scope) this.queue(state, id, scope, 'delete', state.pending[id]?.base || log);
+        delete state.owners[id];
+        this.write(state);
+        this.requestSync();
+        return { log, scope };
+    },
+
+    restoreLog(deleted) {
+        return this.putLog(deleted.log, 'create', deleted.scope);
+    },
+
+    queue(state, id, scope, action, base) {
+        state.pending[id] = { id, scope, action, revision: this.generateUUID() };
+        if (base && (action === 'update' || action === 'delete')) state.pending[id].base = base;
+    },
+
+    async enableSync(includeLocal, expectedScope = this.sessionScope) {
+        const generation = this.syncGeneration;
+        const connection = await window.SupabaseService.connect();
+        if (generation !== this.syncGeneration || (expectedScope !== undefined && connection.scope !== expectedScope)) {
+            throw new Error('云账户已切换，请重新确认同步设置。');
+        }
+
+        const state = this.read();
+        const consent = this.generateUUID();
+        state.consents[connection.scope] = consent;
+        if (includeLocal) {
+            for (const log of state.logs) {
+                if (state.owners[log.id] || state.pending[log.id]) continue;
+                state.owners[log.id] = connection.scope;
+                this.queue(state, log.id, connection.scope, 'adopt');
+            }
+        }
+        this.write(state);
+        this.sessionScope = connection.scope;
+        this.changeActiveScope(connection.scope, consent);
+        return this.syncLocalToCloud();
+    },
+
+    setSyncSession(scope) {
+        const changed = scope !== this.sessionScope;
+        this.sessionScope = scope;
+        let consent;
+        try { consent = scope ? this.read().consents[scope] : null; }
+        catch (error) {
+            this.changeActiveScope(null);
+            throw error;
+        }
+        const next = consent === true || (typeof consent === 'string' && this.UUID.test(consent)) ? scope : null;
+        if (changed || next !== this.activeScope || (next && consent !== this.activeConsent)) {
+            this.changeActiveScope(next, next ? consent : null);
+            this.requestSync();
+        }
+        return this.activeScope;
+    },
+
+    changeActiveScope(scope, consent = null) {
+        this.activeScope = scope;
+        this.activeConsent = consent;
+        this.syncGeneration++;
+        this.stopRetry();
+        this.retryFailures = 0;
+    },
+
+    pauseSync(scope) {
+        if (scope) {
+            const state = this.read();
+            delete state.consents[scope];
+            this.write(state);
+        }
+        this.changeActiveScope(null);
+    },
+
+    forgetSync(projectUrl) {
+        const state = this.read();
+        const prefix = new URL(projectUrl).origin + '|';
+        for (const scope of Object.keys(state.consents)) {
+            if (scope.startsWith(prefix)) delete state.consents[scope];
+        }
+        // Retain account ownership and offline changes for an explicit reconnection.
+        this.write(state);
+        this.sessionScope = null;
+        this.changeActiveScope(null);
+    },
+
+    pendingCount() {
+        return this.activeScope
+            ? Object.values(this.read().pending).filter(item => item.scope === this.activeScope).length
+            : 0;
+    },
+
+    requestSync() {
+        if (this.activeScope) this.syncLocalToCloud().catch(() => {});
+    },
+
+    reportSync(status, type = 'mindspace:sync') {
+        if (typeof document !== 'undefined') {
+            document.dispatchEvent(new CustomEvent(type, { detail: status }));
+        }
+    },
+
+    isCurrentSync(scope, generation) {
+        return scope === this.activeScope && generation === this.syncGeneration;
+    },
+
+    assertCurrentSync(scope, generation) {
+        if (!this.isCurrentSync(scope, generation) || this.read().consents[scope] !== this.activeConsent) {
+            throw new Error('同步设置已变更，请重试。');
+        }
+    },
+
+    stopRetry() {
+        if (this.retryTimer !== null) globalThis.clearTimeout?.(this.retryTimer);
+        this.retryTimer = null;
+    },
+
+    scheduleRetry(error, scope, generation) {
+        if (!(error?.retryable || error instanceof TypeError) || this.retryTimer !== null) return;
+        const delay = Math.min(120000, 5000 * (2 ** Math.min(this.retryFailures++, 5)));
+        this.retryTimer = setTimeout(() => {
+            this.retryTimer = null;
+            if (this.isCurrentSync(scope, generation) && globalThis.navigator?.onLine !== false) this.requestSync();
+        }, delay);
+    },
+
+    async syncLocalToCloud() {
+        const scope = this.activeScope;
+        const generation = this.syncGeneration;
+        if (!scope) throw new Error('请先登录并启用同步。');
+
+        if (this.inFlight) {
+            if (this.inFlightGeneration === generation) return this.inFlight;
+            await this.inFlight.catch(() => {});
+            this.assertCurrentSync(scope, generation);
+            return this.syncLocalToCloud();
+        }
+
+        this.stopRetry();
+        const locks = globalThis.navigator?.locks;
+        const work = () => this.performSync(scope, generation);
+        const job = locks ? locks.request(`${this.KEY}:sync`, work) : work();
+        this.inFlightGeneration = generation;
+        this.inFlight = job;
+        try {
+            const logs = await job;
+            this.assertCurrentSync(scope, generation);
+            this.retryFailures = 0;
+            const pending = this.pendingCount();
+            this.reportSync(pending ? 'pending' : 'synced');
+            if (pending) setTimeout(() => {
+                if (this.isCurrentSync(scope, generation)) this.requestSync();
+            }, 0);
+            return logs;
+        } catch (error) {
+            if (this.isCurrentSync(scope, generation)) {
+                this.reportSync('pending');
+                this.scheduleRetry(error, scope, generation);
+            }
+            throw error;
+        } finally {
+            if (this.inFlight === job) {
+                this.inFlight = null;
+                this.inFlightGeneration = null;
+            }
+        }
+    },
+
+    async performSync(scope, generation) {
+        this.assertCurrentSync(scope, generation);
+        const connection = await window.SupabaseService.connect();
+        this.assertCurrentSync(scope, generation);
+        if (connection.scope !== scope) throw new Error('云账户已切换。');
+        this.reportSync('syncing');
+
+        const acknowledged = [];
+        const operations = Object.values(this.read().pending).filter(operation => operation.scope === scope);
+        try {
+            for (const operation of operations) {
+                this.assertCurrentSync(scope, generation);
+                const latest = this.read();
+                if (latest.pending[operation.id]?.revision !== operation.revision) continue;
+
+                let preserveLocal = false;
+                const log = latest.logs.find(item => item.id === operation.id);
+                if (operation.action === 'delete') {
+                    preserveLocal = await connection.deleteLog(operation.id, operation.base) === false;
+                } else if (log && operation.action === 'update') {
+                    preserveLocal = await connection.updateLog(log, operation.base) === false;
+                } else if (log) {
+                    const inserted = await connection.createLog(log);
+                    if (inserted === false) {
+                        this.assertCurrentSync(scope, generation);
+                        const cloud = this.normalizeLog(await connection.fetchLog(log.id));
+                        preserveLocal = !cloud || !this.sameLog(log, cloud);
+                    }
+                } else {
+                    throw new Error('找不到待上传的日记。');
+                }
+                acknowledged.push({ operation, preserveLocal, sent: log });
+            }
+        } finally {
+            if (acknowledged.length && this.isCurrentSync(scope, generation)) {
+                this.acknowledge(scope, this.activeConsent, acknowledged);
+            }
+        }
+
+        this.assertCurrentSync(scope, generation);
+        const remote = await connection.fetchLogs();
+        this.assertCurrentSync(scope, generation);
+        const cloudLogs = new Map();
+        for (const entry of remote) {
+            const log = this.normalizeLog(entry);
+            if (!log || cloudLogs.has(log.id)) throw new Error('云端日记格式有误，本机日记已保留。');
+            cloudLogs.set(log.id, log);
+        }
+
+        // A pull may complete after another local edit. Merge against the latest library.
+        const state = this.read();
+        const merged = new Map();
+        for (const log of state.logs) {
+            const owner = state.owners[log.id];
+            if (owner !== scope || state.pending[log.id]) merged.set(log.id, log);
+            else if (!cloudLogs.has(log.id)) delete state.owners[log.id];
+        }
+        for (const [id, log] of cloudLogs) {
+            if (state.pending[id] || (state.owners[id] && state.owners[id] !== scope)) continue;
+            if (merged.has(id) && !state.owners[id]) continue;
+            merged.set(id, log);
+            state.owners[id] = scope;
+        }
+        state.logs = [...merged.values()];
+        this.write(state);
+        return this.getLogs();
+    },
+
+    sameLog(a, b) {
+        return a.timestamp === b.timestamp && a.weather === b.weather && a.note === b.note &&
+            JSON.stringify(a.fontRuns ?? []) === JSON.stringify(b.fontRuns ?? []) &&
+            a.tags.length === b.tags.length && a.tags.every((tag, index) => tag === b.tags[index]);
+    },
+
+    acknowledge(scope, consent, results) {
+        const state = this.read();
+        if (state.consents[scope] !== consent) return;
+        let conflicts = 0;
+        let deleteConflicts = 0;
+        for (const { operation, preserveLocal, sent } of results) {
+            const { id, action } = operation;
+            const pending = state.pending[id];
+            if (!pending || scope !== pending.scope) continue;
+            const sameRevision = pending.revision === operation.revision;
+            if (preserveLocal && pending.action !== 'delete' &&
+                (action !== 'update' || pending.action === 'update')) {
+                const index = state.logs.findIndex(log => log.id === id);
+                if (index >= 0) {
+                    state.logs[index] = { ...state.logs[index], id: this.generateUUID() };
+                    delete state.owners[id];
+                    delete state.pending[id];
+                    conflicts++;
+                }
+            } else if (sameRevision) {
+                delete state.pending[id];
+                if (preserveLocal && action === 'delete') deleteConflicts++;
+            } else if (!preserveLocal && sent && action !== 'delete') {
+                if (pending.action === 'create') pending.action = 'update';
+                if (pending.action === 'update' || pending.action === 'delete') pending.base = sent;
+            }
+        }
+        this.write(state);
+        if (conflicts) this.reportSync(conflicts, 'mindspace:sync-conflicts');
+        if (deleteConflicts) this.reportSync(deleteConflicts, 'mindspace:delete-conflicts');
+    },
+
+    clearAllData() {
+        this.sessionScope = null;
+        this.changeActiveScope(null);
+        for (const key of Object.values(this.KEYS)) localStorage.removeItem(key);
+        localStorage.removeItem(this.KEY);
+        this.clearDraft();
+    },
+
+    clearDraft() {
+        if (typeof sessionStorage === 'undefined') return;
+        try {
+            sessionStorage.removeItem('mindspace_weather_draft');
+            for (const key of Object.keys(sessionStorage)) {
+                if (key.startsWith('mindspace_weather_edit:')) sessionStorage.removeItem(key);
+            }
+        }
+        catch { /* Session storage may be disabled. */ }
+    },
+
+    dateKey(date = new Date()) {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    },
+
+    formatDate(timestamp) {
+        const date = new Date(timestamp);
+        return `${this.dateKey(date)} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    },
+
+    aggregateHistory(sources) {
+        const result = {};
+        for (const source of Object.values(sources)) {
+            for (const [date, value] of Object.entries(source)) {
+                result[date] ||= { breathingSeconds: 0, focusSeconds: 0 };
+                result[date].breathingSeconds += value.breathingSeconds;
+                result[date].focusSeconds += value.focusSeconds;
+            }
+        }
+        return result;
+    },
+
+    getHistoryStats() {
+        try { return this.aggregateHistory(this.read().history); }
+        catch { return {}; }
+    },
+
+    getTodayStats() {
+        const date = this.dateKey();
+        return { date, ...(this.getHistoryStats()[date] || { breathingSeconds: 0, focusSeconds: 0 }) };
+    },
+
     getCumulativeStats() {
         const history = this.getHistoryStats();
-        let totalFocusSeconds = 0;
-        let totalBreathingSeconds = 0;
+        const totals = Object.values(history).reduce((sum, day) => ({
+            breathing: sum.breathing + day.breathingSeconds,
+            focus: sum.focus + day.focusSeconds
+        }), { breathing: 0, focus: 0 });
 
-        Object.values(history).forEach(day => {
-            totalFocusSeconds += (day.focusSeconds || 0);
-            totalBreathingSeconds += (day.breathingSeconds || 0);
-        });
-
-        // Compute streak: count consecutive days with activity, starting from today going backwards.
-        // If today has no activity yet, start checking from yesterday (the day is still in progress).
+        const active = date => {
+            const day = history[this.dateKey(date)];
+            return day && day.breathingSeconds + day.focusSeconds > 0;
+        };
+        const date = new Date();
+        if (!active(date)) date.setDate(date.getDate() - 1);
         let streak = 0;
-        let checkDate = new Date();
+        while (active(date)) {
+            streak++;
+            date.setDate(date.getDate() - 1);
+        }
+        return { totalBreathingMinutes: Math.round(totals.breathing / 60), totalFocusMinutes: Math.round(totals.focus / 60), streak };
+    },
 
-        // Format today's date
-        const todayStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
-        const todayData = history[todayStr];
-        const todayHasActivity = todayData && ((todayData.focusSeconds || 0) > 0 || (todayData.breathingSeconds || 0) > 0);
+    accumulatePracticeTime(state, key, seconds, endedAt) {
+        const history = state.history[state.source] ||= {};
+        let cursor = endedAt - seconds * 1000;
+        while (seconds > 0) {
+            const day = new Date(cursor);
+            const keyOfDay = this.dateKey(day);
+            day.setHours(24, 0, 0, 0);
+            const boundary = day.getTime();
+            const chunk = Number.isFinite(boundary) ? Math.min(seconds, Math.ceil((boundary - cursor) / 1000)) : seconds;
+            history[keyOfDay] ||= { breathingSeconds: 0, focusSeconds: 0 };
+            history[keyOfDay][key] += chunk;
+            cursor += chunk * 1000;
+            seconds -= chunk;
+        }
+    },
 
-        if (!todayHasActivity) {
-            // Today has no activity yet, start from yesterday
-            checkDate.setDate(checkDate.getDate() - 1);
+    addPracticeTime(key, seconds, endedAt = Date.now()) {
+        if (!Number.isSafeInteger(seconds) || seconds <= 0 ||
+            !Number.isFinite(new Date(endedAt).getTime()) ||
+            !Number.isFinite(new Date(endedAt - seconds * 1000).getTime())) return;
+        const state = this.read();
+        this.accumulatePracticeTime(state, key, seconds, endedAt);
+        this.write(state);
+    },
+
+    checkpointFocus(runId, elapsedSeconds, startedAt) {
+        const endedAt = startedAt + elapsedSeconds * 1000;
+        if (typeof runId !== 'string' || !this.UUID.test(runId) ||
+            !Number.isSafeInteger(elapsedSeconds) || elapsedSeconds < 0 ||
+            !Number.isSafeInteger(startedAt) || !Number.isFinite(new Date(startedAt).getTime()) ||
+            !Number.isFinite(new Date(endedAt).getTime())) {
+            throw new Error('无法记录这次专注的进度。');
         }
 
-        while (true) {
-            const y = checkDate.getFullYear();
-            const m = String(checkDate.getMonth() + 1).padStart(2, '0');
-            const d = String(checkDate.getDate()).padStart(2, '0');
-            const dateStr = `${y}-${m}-${d}`;
+        const state = this.read();
+        const receipts = state.focusReceipts ||= {};
+        const receipt = receipts[runId];
+        if (receipt && receipt.startedAt !== startedAt) throw new Error('专注记录与本次计时不匹配。');
+        const previous = receipt?.elapsedSeconds || 0;
+        if (elapsedSeconds <= previous) return previous;
 
-            const dayData = history[dateStr];
-            if (dayData && ((dayData.focusSeconds || 0) > 0 || (dayData.breathingSeconds || 0) > 0)) {
-                streak++;
-                checkDate.setDate(checkDate.getDate() - 1);
-            } else {
-                break;
-            }
-        }
-
-        return {
-            totalFocusMinutes: Math.round(totalFocusSeconds / 60),
-            totalBreathingMinutes: Math.round(totalBreathingSeconds / 60),
-            streak: streak
-        };
+        this.accumulatePracticeTime(state, 'focusSeconds', elapsedSeconds - previous, endedAt);
+        // Keep recent checkpoints on this device so a resumed timer can safely retry.
+        if (receipt) delete receipts[runId];
+        receipts[runId] = { startedAt, elapsedSeconds };
+        const ids = Object.keys(receipts);
+        for (const oldId of ids.slice(0, Math.max(0, ids.length - 64))) delete receipts[oldId];
+        this.write(state);
+        return elapsedSeconds;
     },
 
-    /**
-     * Increment breathing duration for today
-     */
-    addBreathingTime(seconds) {
-        const stats = this.getTodayStats();
-        stats.breathingSeconds += seconds;
-        this.saveTodayStats(stats);
-        this.updateHistoryStats(stats.date, 'breathingSeconds', seconds);
-        return stats;
+    addBreathingTime(seconds, endedAt) {
+        this.addPracticeTime('breathingSeconds', seconds, endedAt);
     },
 
-    /**
-     * Increment focus duration for today
-     */
-    addFocusTime(seconds) {
-        const stats = this.getTodayStats();
-        stats.focusSeconds += seconds;
-        this.saveTodayStats(stats);
-        this.updateHistoryStats(stats.date, 'focusSeconds', seconds);
-        return stats;
+    addFocusTime(seconds, endedAt) {
+        this.addPracticeTime('focusSeconds', seconds, endedAt);
     },
 
-    /**
-     * Export all logs to a beautifully structured Markdown string for download
-     */
+    download(content, type, filename) {
+        const url = URL.createObjectURL(new Blob([content], { type }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+    },
+
     exportToMarkdown() {
-        const logs = this.getLogs();
-        const settings = this.getSettings();
-        
-        let mdContent = `# MindSpace 心空 - 心灵气象随笔导出\n`;
-        mdContent += `导出时间: ${this.formatDate(Date.now())}\n`;
-        mdContent += `持有人: ${settings.userName}\n\n`;
-        mdContent += `> 这是您保存在本地浏览器的内心天气日志。感谢您关注自己的心理健康，接纳起伏的每一天。\n\n`;
-        mdContent += `* * *\n\n`;
-
-        if (logs.length === 0) {
-            mdContent += `（目前尚无记录）\n`;
-        } else {
-            logs.forEach(log => {
-                const weatherInfo = this.WEATHER_MAP[log.weather] || { name: log.weather, emoji: '✨' };
-                mdContent += `### 📅 ${this.formatDate(log.timestamp)}\n`;
-                mdContent += `- **内心天气**: ${weatherInfo.emoji} ${weatherInfo.name}\n`;
-                if (log.tags && log.tags.length > 0) {
-                    mdContent += `- **关联标签**: ${log.tags.join(', ')}\n`;
-                }
-                mdContent += `\n**内心随笔**:\n`;
-                if (log.note) {
-                    mdContent += `${log.note}\n`;
-                } else {
-                    mdContent += `*（未记录文字，仅记录了天气与状态）*\n`;
-                }
-                mdContent += `\n* * *\n\n`;
-            });
-        }
-
-        // Create blob and trigger download
-        const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `MindSpace_Export_${new Date().toISOString().slice(0, 10)}.md`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        const state = this.read();
+        const entries = [...state.logs].sort((a, b) => b.timestamp - a.timestamp).map(log => {
+            const labels = log.tags.length ? `\n标签 · ${log.tags.join('、')}` : '';
+            return `## ${this.formatDate(log.timestamp)} · ${this.moodName(log.weather)}${labels}\n\n${log.note || '仅记录了心情。'}`;
+        });
+        this.download(`# MindSpace 心情日记\n\n${entries.join('\n\n---\n\n')}`, 'text/markdown;charset=utf-8', `MindSpace-${this.dateKey()}.md`);
     },
 
-    /**
-     * Export all data to a JSON string and trigger download
-     */
     exportToJSON() {
-        const data = {
-            version: '1.0.0',
+        const state = this.read();
+        const backup = {
+            version: 2,
             exportedAt: Date.now(),
-            logs: this.getLogs(),
-            settings: this.getSettings(),
-            stats: this.getTodayStats(),
-            history: this.getHistoryStats()
+            logs: state.logs,
+            settings: state.settings,
+            practice: state.history
         };
-
-        const jsonContent = JSON.stringify(data, null, 2);
-        const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `MindSpace_Backup_${new Date().toISOString().slice(0, 10)}.json`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        this.download(JSON.stringify(backup, null, 2), 'application/json;charset=utf-8', `MindSpace-${this.dateKey()}.json`);
     },
 
-    /**
-     * Import data from JSON string and merge with local data
-     */
-    async importFromJSON(jsonString) {
-        let imported;
-        try {
-            imported = JSON.parse(jsonString);
-        } catch (e) {
-            throw new Error("文件解析失败，请确保是有效的 JSON 备份文件。");
+    previewImport(jsonString) {
+        let value;
+        try { value = JSON.parse(jsonString); }
+        catch { throw new Error('无法读取 JSON 备份。'); }
+        if (!value || !Array.isArray(value.logs) || ![2, '1.0.0'].includes(value.version)) {
+            throw new Error('请选择 MindSpace 导出的备份文件。');
         }
-
-        if (!imported || typeof imported !== 'object') {
-            throw new Error("备份数据无效，格式不正确。");
+        const logs = value.logs.map(log => this.normalizeLog(log));
+        if (logs.some(log => !log)) throw new Error('备份里有格式不正确的日记，尚未导入。');
+        const practice = value.version === 2 ? this.readBackupPractice(value.practice) : {};
+        const legacy = value.version === '1.0.0' ? this.normalizeHistory(value.history) : null;
+        if (legacy && this.DATE.test(value.stats?.date)) {
+            const { date } = value.stats;
+            legacy[date] = this.mergeDay(legacy[date], this.normalizeHistory({ [date]: value.stats })[date]);
         }
+        const byId = new Map();
+        for (const log of logs) {
+            const duplicate = byId.get(log.id);
+            if (duplicate && !this.sameLog(duplicate, log)) {
+                throw new Error('备份内有相同编号但不同内容的日记，尚未导入。');
+            }
+            byId.set(log.id, log);
+        }
+        const records = [...byId.values()];
+        const { additions, conflicts } = this.classifyBackupLogs(records, this.read());
+        return {
+            logs: records, settings: this.normalizeSettings(value.settings || { customTags: [] }),
+            practice, legacy, newLogs: additions.length, conflicts
+        };
+    },
 
-        // 1. Merge Logs
-        if (imported.logs && Array.isArray(imported.logs)) {
-            const localLogs = this.getLogs();
-            const logMap = new Map();
-            // Load local logs first
-            localLogs.forEach(log => logMap.set(log.id, log));
-            
-            // Merge imported logs (avoiding duplicates by id)
-            let mergedCount = 0;
-            imported.logs.forEach(log => {
-                if (log && log.id) {
-                    if (!logMap.has(log.id)) {
-                        logMap.set(log.id, {
-                            id: log.id,
-                            timestamp: Number(log.timestamp) || Date.now(),
-                            weather: log.weather || 'sunny',
-                            tags: Array.isArray(log.tags) ? log.tags : [],
-                            note: typeof log.note === 'string' ? log.note : ''
-                        });
-                        mergedCount++;
-                    }
+    readBackupPractice(practice) {
+        if (practice === undefined) return {};
+        const invalid = () => new Error('备份里的练习记录格式有误，尚未导入。');
+        if (!this.isRecord(practice)) throw invalid();
+
+        const sources = new Map();
+        for (const [key, records] of Object.entries(practice)) {
+            const id = key.toLowerCase();
+            if (!this.UUID.test(id) || sources.has(id) || !this.isRecord(records)) throw invalid();
+            const history = {};
+            for (const [date, record] of Object.entries(records)) {
+                if (!this.DATE.test(date) || !this.isRecord(record)) throw invalid();
+                const utcDate = new Date(`${date}T00:00:00.000Z`);
+                if (!Number.isFinite(utcDate.getTime()) || utcDate.toISOString().slice(0, 10) !== date) throw invalid();
+                const { breathingSeconds = 0, focusSeconds = 0 } = record;
+                if (![breathingSeconds, focusSeconds].every(seconds => Number.isSafeInteger(seconds) && seconds >= 0)) {
+                    throw invalid();
                 }
-            });
-
-            const mergedLogs = Array.from(logMap.values()).sort((a, b) => b.timestamp - a.timestamp);
-            localStorage.setItem(this.KEYS.LOGS, JSON.stringify(mergedLogs));
-            console.log(`已成功合并 ${mergedCount} 条日志记录。`);
-        }
-
-        // 2. Merge Settings (customTags)
-        if (imported.settings && typeof imported.settings === 'object') {
-            const localSettings = this.getSettings();
-            
-            // Merge customTags using Set
-            const tagsSet = new Set(localSettings.customTags || []);
-            if (Array.isArray(imported.settings.customTags)) {
-                imported.settings.customTags.forEach(tag => {
-                    if (typeof tag === 'string' && tag.trim()) {
-                        tagsSet.add(tag.trim());
-                    }
-                });
+                history[date] = { breathingSeconds, focusSeconds };
             }
-            localSettings.customTags = Array.from(tagsSet);
-
-            // Merge userName if currently default
-            if (imported.settings.userName && localSettings.userName === '旅人') {
-                localSettings.userName = imported.settings.userName;
-            }
-
-            this.saveSettings(localSettings);
+            sources.set(id, history);
         }
+        return Object.fromEntries(sources);
+    },
 
-        // 3. Merge History Stats
-        if (imported.history && typeof imported.history === 'object') {
-            const localHistory = this.getHistoryStats();
-            Object.keys(imported.history).forEach(dateStr => {
-                const importedDay = imported.history[dateStr];
-                if (importedDay && typeof importedDay === 'object') {
-                    if (!localHistory[dateStr]) {
-                        localHistory[dateStr] = { breathingSeconds: 0, focusSeconds: 0 };
-                    }
-                    localHistory[dateStr].breathingSeconds = (localHistory[dateStr].breathingSeconds || 0) + (importedDay.breathingSeconds || 0);
-                    localHistory[dateStr].focusSeconds = (localHistory[dateStr].focusSeconds || 0) + (importedDay.focusSeconds || 0);
-                }
-            });
-            localStorage.setItem(this.KEYS.HISTORY, JSON.stringify(localHistory));
-        }
-
-        // 4. Merge Today's Stats
-        if (imported.stats && typeof imported.stats === 'object') {
-            const todayStats = this.getTodayStats();
-            if (imported.stats.date === todayStats.date) {
-                todayStats.breathingSeconds += (imported.stats.breathingSeconds || 0);
-                todayStats.focusSeconds += (imported.stats.focusSeconds || 0);
-                this.saveTodayStats(todayStats);
+    classifyBackupLogs(records, state) {
+        const local = new Map(state.logs.map(log => [log.id, log]));
+        const additions = [];
+        let conflicts = 0;
+        for (const log of records) {
+            const current = local.get(log.id);
+            if (current) {
+                if (!this.sameLog(current, log)) conflicts++;
+            } else if (!Object.hasOwn(state.pending, log.id)) {
+                additions.push(log);
             }
         }
+        return { additions, conflicts };
+    },
 
-        // 5. Trigger Supabase merge sync if logged in
-        if (window.SupabaseService && window.SupabaseService.isConfigured()) {
-            try {
-                // This will upload merged local logs and pull/merge cloud logs
-                await this.syncLocalToCloud();
-            } catch (e) {
-                console.warn("Sync to Supabase after import failed, will retry later:", e);
+    importBackup(backup, destination = null) {
+        const state = this.read();
+        const { additions } = this.classifyBackupLogs(backup.logs, state);
+        if (destination && (!destination.scope || destination.scope !== this.activeScope ||
+            destination.consent !== this.activeConsent || state.consents[destination.scope] !== destination.consent)) {
+            throw new Error('云账户或同步设置已变更。请重新打开备份并确认。');
+        }
+        state.logs.push(...additions);
+        if (destination) {
+            for (const log of additions) {
+                state.owners[log.id] = this.activeScope;
+                this.queue(state, log.id, this.activeScope, 'adopt');
             }
         }
+        state.settings.customTags = [...new Set([...state.settings.customTags, ...backup.settings.customTags])];
+        if (state.settings.userName === this.DEFAULT_SETTINGS.userName) state.settings.userName = backup.settings.userName;
+        if (!state.settings.theme) state.settings.theme = backup.settings.theme;
+        if (!this.normalizeSettings(state.settings).journalFont) state.settings.journalFont = backup.settings.journalFont;
+        for (const [source, history] of Object.entries(backup.practice)) {
+            const current = state.history[source] ||= {};
+            for (const [date, value] of Object.entries(history)) current[date] = this.mergeDay(current[date], value);
+        }
+        if (backup.legacy) {
+            const legacySource = '00000000-0000-5000-a000-000000000000';
+            const totals = this.aggregateHistory(state.history);
+            const destination = state.history[legacySource] ||= {};
+            for (const [date, value] of Object.entries(backup.legacy)) {
+                const previous = destination[date] || { breathingSeconds: 0, focusSeconds: 0 };
+                destination[date] = {
+                    breathingSeconds: previous.breathingSeconds + Math.max(0, value.breathingSeconds - (totals[date]?.breathingSeconds || 0)),
+                    focusSeconds: previous.focusSeconds + Math.max(0, value.focusSeconds - (totals[date]?.focusSeconds || 0))
+                };
+            }
+        }
+        this.write(state);
+        if (destination && additions.length) this.requestSync();
+        return additions.length;
+    },
 
-        return true;
+    importFromJSON(jsonString) {
+        return this.importBackup(this.previewImport(jsonString));
     }
 };

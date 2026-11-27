@@ -27,7 +27,7 @@ expectMatch("index.html", new RegExp(`js/version\\.js\\?v=${version.replace(/\./
 expectMatch("index.html", new RegExp(`id="current-app-version">v${version.replace(/\./g, "\\.")}<`), "visible app version is stale");
 expectMatch("sw.js", new RegExp(`CACHE_NAME\\s*=\\s*["']mindspace-shell-v${version.replace(/\./g, "\\.")}["']`), "service worker cache version is stale");
 expectMatch("android/app/build.gradle", new RegExp(`versionName\\s+["']${version.replace(/\./g, "\\.")}["']`), "Android versionName does not match package.json");
-expectMatch("README.md", new RegExp(`当前正式版本：\\*\\*v${version.replace(/\./g, "\\.")}\\*\\*`), "README release version is stale");
+expectMatch("README.md", new RegExp(`当前版本 \\*\\*v${version.replace(/\./g, "\\.")}\\*\\*`), "README release version is stale");
 expectMatch("android/app/src/main/AndroidManifest.xml", /android:allowBackup="false"/, "Android app data backup must remain disabled");
 expectMatch("android/app/src/main/AndroidManifest.xml", /android:dataExtractionRules="@xml\/data_extraction_rules"/, "Android data extraction rules are missing");
 expectMatch("android/app/src/main/AndroidManifest.xml", /android:fullBackupContent="@xml\/backup_rules"/, "Android legacy backup rules are missing");
@@ -51,6 +51,60 @@ for (const relativePath of ["package.json", "index.html", "manifest.webmanifest"
   if (/assets\/icon\.(?:svg|png|ico)/.test(contents)) {
     failures.push(`${relativePath}: references a removed redundant icon`);
   }
+}
+
+const lock = JSON.parse(read("package-lock.json"));
+if (lock.version !== version || lock.packages?.[""]?.version !== version) {
+  failures.push("package-lock.json: root versions must match package.json");
+}
+
+const workerSource = read("sw.js");
+const shellDeclaration = workerSource.match(/const APP_SHELL = (\[[\s\S]*?\]);/);
+const optionalFontDeclaration = workerSource.match(/const OPTIONAL_FONT_PATHS = (\[[\s\S]*?\]);/);
+const shell = new Set(shellDeclaration ? JSON.parse(shellDeclaration[1]) : []);
+const optionalFonts = optionalFontDeclaration ? JSON.parse(optionalFontDeclaration[1]) : [];
+const webScope = new URL("https://example.test/mindspace/");
+const shellUrls = new Set([...shell].map(entry => new URL(entry, webScope).href));
+const optionalFontUrls = new Set(optionalFonts.map(entry => new URL(entry, webScope).href));
+
+function verifyAsset(entry, source, relativeTo = webScope, requiresPrecache = true) {
+  const url = new URL(entry, relativeTo);
+  if (url.origin !== webScope.origin || !url.pathname.startsWith(webScope.pathname)) return;
+  const assetPath = decodeURIComponent(url.pathname.slice(webScope.pathname.length));
+  if (!fs.existsSync(path.join(root, assetPath))) {
+    failures.push(`${source}: missing local asset ${assetPath}`);
+  }
+  if (requiresPrecache && !shellUrls.has(url.href)) {
+    failures.push(`${source}: ${entry} is missing from the offline shell`);
+  }
+  if (url.searchParams.has("v") && url.searchParams.get("v") !== version) {
+    failures.push(`${source}: ${entry} has an outdated version marker`);
+  }
+}
+
+for (const entry of shell) verifyAsset(entry, "sw.js");
+for (const entry of optionalFonts) verifyAsset(entry, "sw.js", webScope, false);
+for (const [, entry] of read("index.html").matchAll(/(?:src|href)=["']((?:assets|css|js)\/[^"']+|favicon\.ico[^"']*|manifest\.webmanifest[^"']*)["']/g)) {
+  verifyAsset(entry, "index.html");
+}
+for (const [, entry] of read("index.html").matchAll(/data-font-source="([^"]+)"/g)) {
+  verifyAsset(entry, "index.html", webScope, !optionalFontUrls.has(new URL(entry, webScope).href));
+}
+for (const stylesheet of shellUrls) {
+  const url = new URL(stylesheet);
+  if (!url.pathname.endsWith(".css") || url.origin !== webScope.origin ||
+      !url.pathname.startsWith(webScope.pathname)) continue;
+  const file = decodeURIComponent(url.pathname.slice(webScope.pathname.length));
+  if (!fs.existsSync(path.join(root, file))) continue;
+  for (const [, entry] of read(file).matchAll(/(?:url\(["']?([^"'()]+)["']?\))/g)) {
+    verifyAsset(entry, file, url);
+  }
+}
+const manifest = JSON.parse(read("manifest.webmanifest"));
+verifyAsset(manifest.start_url, "manifest.webmanifest");
+for (const { src } of manifest.icons) verifyAsset(src, "manifest.webmanifest");
+for (const [, entry] of read("js/focus.js").matchAll(/["'](\.\/assets\/sounds\/[^"']+\.mp3)["']/g)) {
+  verifyAsset(entry, "js/focus.js", webScope, false);
 }
 
 if (process.env.GITHUB_REF_TYPE === "tag" && process.env.GITHUB_REF_NAME !== `v${version}`) {

@@ -1,1 +1,1 @@
-window.MINDSPACE_VERSION = "1.1.1";
+window.MINDSPACE_VERSION = "1.2.72";

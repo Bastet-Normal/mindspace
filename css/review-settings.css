@@ -1,0 +1,278 @@
+:is(#view-journal, #view-insights, #view-settings) {
+    --panel-tint: color-mix(in srgb, var(--accent-bg) 42%, var(--surface));
+    --panel-line: var(--border);
+    --panel-ink: var(--accent-color);
+}
+
+#view-journal { max-width: 900px; margin-inline: auto; }
+.journal-heading, .journal-heading .section-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+}
+.journal-heading { justify-content: space-between; margin-block-end: 22px; }
+.journal-heading .section-title { align-items: baseline; margin: 0; }
+.journal-heading .section-title h1 { font-size: clamp(25px, 2.5vw, 30px); }
+.journal-heading #journal-status { font: 400 13px/1.6 var(--font-ui); letter-spacing: normal; margin: 0; }
+.journal-heading .page-actions { margin: 0; }
+@media (min-width: 1024px) {
+    .journal-heading [data-go="insights"] { display: none; }
+}
+
+#view-journal .search-box { position: relative; }
+
+#view-journal .search-box > ion-icon {
+    position: absolute;
+    inset-inline-start: 12px;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+#view-journal .search-box #journal-search {
+    min-height: 43px;
+    padding-inline: 36px 11px;
+    background: var(--panel-tint);
+}
+
+#view-journal .journal-filter-row:has(+ .journal-result-bar:not([hidden])) { margin-block-end: 4px; }
+#view-journal .journal-result-bar { margin-block-end: 14px; }
+
+.journal-day-weather {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 3px 12px;
+    margin-block-end: 16px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--panel-tint);
+}
+.journal-day-weather-label { color: var(--text-muted); font-size: 13px; font-weight: 600; }
+
+#view-journal .journal-day-heading {
+    gap: 9px;
+    font-size: .88rem;
+    font-weight: 550;
+}
+
+#view-journal .journal-day-heading::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    min-width: 16px;
+    background: var(--border);
+    opacity: .72;
+}
+
+#view-journal .journal-today-marker {
+    background: var(--panel-tint);
+    color: var(--panel-ink);
+}
+
+#view-journal .journal-card { border-radius: 12px; }
+#view-journal .journal-open:hover { background: transparent; }
+#view-journal .journal-card .weather-chip { width: 20px; height: 20px; }
+#view-journal .journal-card .weather-visual { --weather-visual-size: 20px; }
+#view-journal .journal-weather-info { gap: 4px; }
+#view-journal .journal-weather-name { font-size: 13px; font-weight: 450; color: var(--text-muted); }
+#view-journal .journal-open:not(:has(.journal-note-preview)) .journal-weather-info { order: -1; }
+#view-journal .journal-open:not(:has(.journal-note-preview)) .journal-weather-name { color: var(--text-primary); font-size: 17px; font-weight: 550; }
+#view-journal .journal-time { font-size: .78rem; font-variant-numeric: tabular-nums; }
+#view-journal .journal-tags { margin-top: 7px; }
+#view-journal .journal-tags .tag { background: var(--panel-tint); color: var(--panel-ink); }
+#view-journal .journal-note-preview {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    margin-block-end: 9px;
+    max-inline-size: 36em;
+    font: clamp(17px, 1.6vw, 18px)/1.75 var(--journal-font, var(--font-sans));
+}
+#view-journal .tag { max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#view-journal .tag-more { font-size: 12px; color: var(--text-muted); }
+#modal-container .modal:has(.modal-diary-text) { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+#modal-body:has(.modal-diary-text) { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+#modal-actions .diary-delete { margin-right: auto; color: var(--danger); font-weight: 500; }
+#view-journal .empty-state {
+    margin-top: 0;
+    background: var(--card-surface);
+    border: 1px solid var(--panel-line);
+    border-radius: var(--radius);
+}
+
+#view-journal .empty-state .empty-icon { background: var(--panel-tint); color: var(--panel-ink); }
+
+@media (hover: hover) {
+    #view-journal .journal-filter select:hover { background: var(--subtle); }
+    #view-journal .journal-card:has(.journal-open:hover) {
+        background: var(--surface);
+        border-color: var(--panel-line);
+    }
+}
+
+#view-insights .mindful-stat-item {
+    border: 0;
+    background: transparent;
+    padding: 3px;
+}
+
+#view-insights .stat-icon-wrapper {
+    background: var(--metric-fill, var(--panel-tint));
+    color: var(--metric-ink, var(--panel-ink));
+}
+
+#view-insights .theme-accent { --metric-fill: var(--weather-foggy); --metric-ink: var(--weather-foggy-text); }
+#view-insights .theme-weather { --metric-fill: var(--weather-breezy); --metric-ink: var(--weather-breezy-text); }
+#view-insights .theme-focus { --metric-fill: var(--weather-cloudy); --metric-ink: var(--weather-cloudy-text); }
+#view-insights .theme-streak { --metric-fill: var(--weather-sunny); --metric-ink: var(--weather-sunny-text); }
+#view-insights .stat-val { font: 400 clamp(17px, 1.8vw, 24px)/1.45 var(--font-numeral); font-variant-numeric: tabular-nums; }
+#view-insights .calendar-card-left { min-width: 0; }
+#view-insights .calendar-header { margin-bottom: 10px; }
+#view-insights .calendar-weekdays { margin-bottom: 7px; font-weight: 550; }
+
+#view-insights .calendar-day {
+    grid-template-rows: 1fr;
+    min-height: 49px;
+    padding: 2px 0;
+    background: var(--tone-bg, var(--surface));
+    border-color: var(--card-edge);
+    border-radius: 8px;
+}
+
+#view-insights .calendar-day.is-today { border-color: var(--accent-color); box-shadow: inset 0 0 0 1px var(--accent-color); }
+#view-insights .calendar-day.has-weather { grid-template-rows: 1fr auto; }
+#view-insights .calendar-day .weather-chip { width: 18px; height: 18px; align-self: end; }
+#view-insights .calendar-day .weather-visual { --weather-visual-size: 18px; }
+#view-insights .calendar-day.has-note::after { inset: auto auto 4px 4px; }
+#view-insights .calendar-month { inset: 2px auto auto 3px; font-size: 9px; }
+@media (max-width: 480px) {
+    #view-insights .calendar-day:has(.calendar-month) { padding-top: 10px; }
+}
+#view-insights button.calendar-day:hover {
+    border-color: var(--tone-ink, var(--accent-color));
+    box-shadow: inset 0 0 0 1px var(--tone-ink, var(--accent-color));
+}
+
+#view-insights .calendar-day-count { font-weight: 650; }
+@container mindspace-content (width < 490px) {
+    #view-insights .calendar-day-count { display: none; }
+}
+
+#view-insights .calendar-card-right {
+    margin-top: 13px;
+    padding: 11px 13px;
+    border: 1px solid var(--panel-line);
+    border-radius: 13px;
+    background: var(--panel-tint);
+}
+
+#view-insights .calendar-legend {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px 10px;
+    margin-top: 0;
+}
+
+#view-insights .calendar-legend .legend-item { gap: 6px; white-space: nowrap; }
+#view-insights .weather-calendar-comfort { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--panel-line); }
+#view-insights :is(.weather-chart-list, .tags-analysis-list) { gap: 10px; }
+#view-insights :is(.chart-row, .tag-analysis-row) { grid-template-columns: fit-content(40%) minmax(16px, 1fr) max-content; gap: 10px; }
+#view-insights .chart-label { min-width: 2.4em; }
+#view-insights .tag-analysis-name { min-width: 2.4em; }
+#view-insights :is(.chart-track, .tag-analysis-track) { background-color: var(--panel-tint); }
+#view-insights .tag-analysis-fill { background-color: var(--panel-ink); }
+#view-insights :is(.chart-percent, .tag-analysis-count) { font-variant-numeric: tabular-nums; }
+
+@container mindspace-content (min-width: 360px) {
+    #view-insights .calendar-legend { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; }
+}
+
+@container mindspace-content (min-width: 820px) {
+    #view-insights .calendar-card-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(180px, .38fr);
+        align-items: center;
+        gap: 24px;
+    }
+    #view-insights .calendar-card-right { margin-top: 0; padding: 15px; }
+    #view-insights .calendar-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 13px; }
+}
+
+#view-settings .settings-card > p { line-height: 1.65; }
+
+.font-licenses { margin-top: 14px; border-top: 1px solid var(--panel-line); }
+.font-licenses summary { padding-block: 12px 2px; color: var(--text-muted); cursor: pointer; }
+.font-license-actions { display: grid; justify-items: start; gap: 5px; padding-top: 7px; }
+#view-settings .font-license-actions a { margin-top: 0; }
+.font-license-actions button[aria-pressed="true"] { background: var(--accent-bg); color: var(--accent-color); }
+
+#view-settings .settings-actions {
+    gap: 0;
+    padding: 3px 10px;
+    border: 1px solid var(--panel-line);
+    border-radius: 13px;
+    background: var(--panel-tint);
+}
+
+#view-settings .settings-actions > .secondary-btn {
+    min-height: 44px;
+    padding: 8px 4px;
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+#view-settings .settings-actions > .secondary-btn:not(.hidden, [hidden]) ~ .secondary-btn:not(.hidden, [hidden]) {
+    border-top: 1px solid var(--panel-line);
+    border-radius: 0;
+}
+
+#view-settings .settings-actions > .secondary-btn ion-icon { color: var(--panel-ink); }
+#view-settings .settings-actions > .secondary-btn:hover { color: var(--panel-ink); }
+#view-settings .settings-actions > .primary-btn { margin: 5px 0; }
+
+#view-settings .backup-note {
+    margin-top: 10px;
+    color: var(--text-muted);
+    font-size: .82rem;
+}
+
+#view-settings .settings-card > .clear-data {
+    display: flex;
+    width: 100%;
+    margin-top: 12px;
+    padding: 8px 3px 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    background: transparent;
+    font-size: .87rem;
+}
+
+#view-settings .settings-card > .clear-data:hover { text-decoration: underline; }
+
+#view-settings .settings-inline,
+#view-settings .settings-version > .secondary-btn { border-color: var(--panel-line); }
+
+#view-settings a.settings-inline {
+    padding-inline: 0;
+    border-color: transparent;
+    color: var(--panel-ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+#view-settings .settings-version { align-items: center; margin-top: 9px; }
+#view-settings .settings-version > p { margin-top: 0; }
+#view-settings #current-app-version { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+#view-settings #app-update-status:not([hidden]) {
+    margin-top: 11px;
+    padding: 9px 11px;
+    border: 1px solid var(--panel-line);
+    border-radius: 10px;
+    background: var(--panel-tint);
+}

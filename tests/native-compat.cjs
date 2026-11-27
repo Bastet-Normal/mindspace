@@ -2,271 +2,278 @@ const { test } = require("node:test");
 const { expect } = require("expect");
 const { setTimeout: delay } = require("node:timers/promises");
 const { openSafari } = require("./safari-page.cjs");
-const { version: APP_VERSION } = require("../package.json");
-const release = {tag_name: "v1.2.0",
-          html_url: "https://github.com/Bastet-Normal/mindspace/releases/tag/v1.2.0",
-          body: "<b>兼容性测试更新</b>",
-          assets: [
-            {
-              name: "MindSpace-1.2.0-Windows-Portable-x64.exe",
-              size: 1048576,
-              browser_download_url: "https://github.com/Bastet-Normal/mindspace/releases/download/v1.2.0/MindSpace-1.2.0-Windows-Portable-x64.exe"
-            }
-          ]
+const { version } = require("../package.json");
+
+const release = {
+    tag_name: "v9.0.0",
+    html_url: "https://github.com/Bastet-Normal/mindspace/releases/tag/v9.0.0",
+    body: "<b>兼容性测试更新</b>",
+    assets: [{
+        name: "MindSpace-9.0.0-Windows-Portable-x64.exe",
+        size: 1048576,
+        browser_download_url: "https://github.com/Bastet-Normal/mindspace/releases/download/v9.0.0/MindSpace-9.0.0-Windows-Portable-x64.exe"
+    }]
 };
 
-async function verify(read, expected, contains = false) {
-  const deadline = Date.now() + 12000;
-  while (true) {
-    try {
-      const actual = await read();
-      if (contains) expect(actual).toContain(expected);
-      else if (expected instanceof RegExp) expect(actual).toMatch(expected);
-      else expect(actual).toEqual(expected);
-      return;
-    } catch (err) { if (Date.now() >= deadline) throw err; await delay(100); }
-  }
-}
-function navigationSelector(page, view) {
-  const width = page.viewportSize()?.width || 1440;
-  const container = width < 768 ? "#bottom-nav" : "#desktop-sidebar";
-  return `${container} [data-view="${view}"]`;
+async function waitFor(read, expected) {
+    const deadline = Date.now() + 12000;
+    while (true) {
+        try {
+            const value = await read();
+            if (expected instanceof RegExp) expect(value).toMatch(expected);
+            else expect(value).toEqual(expected);
+            return;
+        } catch (error) {
+            if (Date.now() >= deadline) throw error;
+            await delay(100);
+        }
+    }
 }
 
-for (const [width,height] of [[1440,900],[1366,768],[412,915],[360,740],[390,844]]) {
-  test(`Safari compatibility at ${width} × ${height}`, async t => {
-    const page = await openSafari(width, height, release);
-    t.after(() => page.close());
-    await verify(() => page.locator("#app-container").visible(), true);
-    await verify(() => page.locator("#greeting-text").visible(), true);
-    await verify(() => page.locator("#quote-content").visible(), true);
-    if ((page.viewportSize()?.width || 1440) < 768) {
-      await verify(() => page.locator("#mobile-auth-btn .icon-fallback").text(), "账户");
-      await verify(() => page.locator("#mobile-auth-btn .icon-fallback").visible(), true);
-      await verify(() => page.locator("#theme-toggle .icon-fallback").text(), "主题");
-      await verify(() => page.locator("#theme-toggle .icon-fallback").visible(), true);
-    }
-    await verify(() => page.locator('link[rel="manifest"]').attribute("href"), `manifest.webmanifest?v=${APP_VERSION}`);
-    await verify(() => page.locator('link[rel="shortcut icon"]').attribute("href"), `favicon.ico?v=${APP_VERSION}`);
-    await verify(() => page.locator('link[rel="icon"][sizes="512x512"]').attribute("href"), `assets/icon-512.png?v=${APP_VERSION}`);
+for (const [width, height] of [[1440, 900], [1024, 768], [768, 900], [390, 844], [320, 720]]) {
+    test(`MindSpace native Safari at ${width} × ${height}`, async t => {
+        const page = await openSafari(width, height, release);
+        t.after(() => page.close());
+        const nav = width < 1024 ? "#bottom-nav" : "#desktop-sidebar";
+        const show = route => waitFor(() => page.locator(`#view-${route}`).visible(), true);
+        const navigate = route => page.locator(`${nav} [data-view="${route}"]`).click();
 
-    const manifest = await page.evaluate(async () => {
-      const manifestHref = document.querySelector('link[rel="manifest"]').getAttribute("href");
-      const response = await fetch(manifestHref);
-      return response.json();
+        await show("dashboard");
+        expect(await page.viewportSize()).toEqual({ width, height });
+        expect(await page.locator("#greeting-text").text()).toMatch(/旅人$/);
+        expect(await page.locator(".quick-weather").count()).toBe(6);
+        expect(await page.locator(".practice-icon ion-icon svg").count()).toBe(2);
+        expect(await page.locator('link[rel="manifest"]').attribute("href")).toBe(`manifest.webmanifest?v=${version}`);
+
+        const baseline = await page.evaluate(() => ({
+            defaultUrl: window.SUPABASE_CONFIG.url,
+            defaultKey: window.SUPABASE_CONFIG.anonKey,
+            cloudConfigured: window.SupabaseService.isConfigured(),
+            canCache: "serviceWorker" in navigator,
+            wide: document.documentElement.scrollWidth > innerWidth
+        }));
+        expect(baseline).toEqual({ defaultUrl: "", defaultKey: "", cloudConfigured: false, canCache: true, wide: false });
+
+        await page.locator("#widget-today-weather [data-go=weather]").click();
+        await show("weather");
+        expect(await page.locator("#entry-setup").visible()).toBe(true);
+        expect(await page.locator("#mood-note").visible()).toBe(false);
+        const offset = await page.evaluate(() => {
+            const card = document.querySelector(".weather-split-layout").getBoundingClientRect();
+            const main = document.querySelector("#app-content").getBoundingClientRect();
+            const navigation = document.querySelector("#bottom-nav").getBoundingClientRect();
+            const bottom = navigation.height ? navigation.top : innerHeight;
+            return [
+                Math.abs(card.left + card.width / 2 - (main.left + main.width / 2)),
+                Math.abs(card.top + card.height / 2 - (main.top + bottom) / 2)
+            ];
+        });
+        expect(Math.max(...offset)).toBeLessThan(2);
+        expect(await page.locator("#view-weather .lake-window").count()).toBe(0);
+        expect(await page.locator('[data-entry-mode="now"]').attribute("aria-pressed")).toBe("true");
+        expect(await page.locator("#entry-past-time").visible()).toBe(false);
+        const timeLayout = await page.evaluate(() => {
+            const now = document.querySelector('[data-entry-mode="now"]');
+            const past = document.querySelector('[data-entry-mode="past"]');
+            const anchors = [".weather-split-layout", ".entry-mood-picker", "#entry-confirm"];
+            const positions = () => anchors.map(selector => document.querySelector(selector).getBoundingClientRect().top + scrollY);
+            const before = positions();
+            past.click();
+            const after = positions();
+            const heights = ["#entry-date", "#entry-time"].map(selector => document.querySelector(selector).getBoundingClientRect().height);
+            const selected = getComputedStyle(past);
+            const shadow = selected.boxShadow !== "none" && selected.borderBottomWidth === "0px";
+            now.click();
+            return {
+                shifted: after.some((top, index) => Math.abs(top - before[index]) > 1),
+                compact: heights.every(height => height > 30 && height < 40),
+                shadow
+            };
+        });
+        expect(timeLayout).toEqual({ shifted: false, compact: true, shadow: true });
+        expect(await page.locator('input[name="selected-weather"]:checked').count()).toBe(0);
+        const weatherMotion = await page.evaluate(() => ({
+            reduced: matchMedia("(prefers-reduced-motion: reduce)").matches,
+            names: [".sun-core", ".leaf-icon", ".cloud-front", ".fog-cloud", ".rainy-anim .wx-drop", ".wx-lightning"]
+                .map(selector => getComputedStyle(document.querySelector(`#view-weather ${selector}`)).animationName)
+        }));
+        expect(weatherMotion.names.every(name => weatherMotion.reduced ? name === "none" : name.startsWith("mindspace-"))).toBe(true);
+        await page.locator("#entry-confirm").click();
+        await waitFor(() => page.locator("#entry-setup-status").text(), "先选一种或两种心情。");
+        await page.locator('[data-weather="rainy"] .weather-box').click();
+        await page.locator('[data-weather="breezy"] .weather-box').click();
+        await page.locator('[data-weather="foggy"] .weather-box').click();
+        expect(await page.locator('input[name="selected-weather"]:checked').count()).toBe(2);
+        await page.locator("#entry-confirm").click();
+        expect(await page.locator("#entry-setup").visible()).toBe(false);
+        expect(await page.locator(".entry-first-line-meta").text()).not.toMatch(/此刻心情|那时心情/);
+        expect(await page.locator(".entry-summary-mood").count()).toBe(2);
+        const entryTime = await page.locator("#entry-summary-time").attribute("datetime");
+        const paperGaps = await page.evaluate(() => {
+            const paper = document.querySelector(".weather-split-layout").getBoundingClientRect();
+            const content = document.querySelector("#app-content").getBoundingClientRect();
+            const nav = document.querySelector("#bottom-nav").getBoundingClientRect();
+            return [paper.left - content.left, content.right - paper.right, paper.top - content.top,
+                (nav.height ? nav.top : innerHeight) - paper.bottom];
+        });
+        expect(Math.min(...paperGaps)).toBeGreaterThan(7);
+        expect(Math.abs(paperGaps[0] - paperGaps[1])).toBeLessThan(2);
+        const editorFocus = await page.evaluate(() => {
+            const note = document.getElementById("mood-note");
+            const sheet = note.closest(".weather-split-layout");
+            const firstLine = document.querySelector(".entry-first-line");
+            document.getElementById("entry-change").focus({ preventScroll: true });
+            const headerBorder = getComputedStyle(firstLine).borderBottomColor;
+            note.focus();
+            const writingFocus = document.activeElement === note && getComputedStyle(note).borderTopWidth === "0px"
+                && getComputedStyle(note).resize === "none" && getComputedStyle(sheet).borderTopWidth === "1px"
+                && getComputedStyle(firstLine).borderBottomColor !== headerBorder;
+            const tagDetails = document.getElementById("tag-details");
+            const anchor = tagDetails.querySelector("summary");
+            const save = document.getElementById("save-log-btn");
+            const baseline = [anchor, note, save].map(element => element.getBoundingClientRect().top);
+            tagDetails.open = true;
+            const stationary = [anchor, note, save].every((element, index) =>
+                Math.abs(element.getBoundingClientRect().top - baseline[index]) < 1);
+            const panel = tagDetails.querySelector(".entry-tag-panel").getBoundingClientRect();
+            const tag = document.getElementById("custom-tag-input");
+            const tagBorder = getComputedStyle(tag).borderColor;
+            tag.focus();
+            const tagFocus = getComputedStyle(tag);
+            return [writingFocus, stationary && panel.bottom < baseline[0],
+                tagFocus.outlineOffset === "-1px" && tagFocus.borderColor !== tagBorder];
+        });
+        expect(editorFocus).toEqual([true, true, true]);
+        await page.locator("#mood-note").fill("兼容性测试记录");
+        await page.evaluate(() => app.journalEditor.view.setSelection(3, 2));
+        await page.locator("#font-details summary").click();
+        await page.locator('[data-font-choice="song"]').click();
+        expect(await page.locator("#font-summary").text()).toBe("宋体");
+        expect(await page.locator("#mood-note .ql-font-song").text()).toBe("测试");
+        await page.locator("#entry-change").click();
+        expect(await page.locator("#entry-setup").visible()).toBe(true);
+        await page.locator("#entry-confirm").click();
+        expect(await page.locator("#mood-note").text()).toBe("兼容性测试记录");
+        expect(await page.locator("#entry-summary-time").attribute("datetime")).toBe(entryTime);
+        await navigate("journal");
+        await navigate("weather");
+        expect(await page.locator("#mood-note").text()).toBe("兼容性测试记录");
+        await page.locator("#save-log-btn").click();
+        await show("dashboard");
+        expect(await page.locator(".welcome-card .lake-window").attribute("data-sky")).toBe("");
+        expect(await page.locator("#widget-today-weather h2").text()).toBe("今日天气");
+        expect(await page.locator(".today-weather-bar [data-weather=rainy]").attribute("style")).toBe("flex-grow:0.5");
+        expect(await page.locator(".week-day.is-today .week-date").text()).toBe(await page.evaluate(() => String(new Date().getDate())));
+        await waitFor(() => page.locator("#toast-message").text(), "已记下此刻");
+        await page.locator("#toast-action").click();
+        await show("breathing");
+        await waitFor(() => page.locator("#breath-instruction").text(), "慢慢吸气");
+        await page.evaluate(() => {
+            MindSpaceBreathing.startedAt -= 61_000;
+            MindSpaceBreathing.tick();
+        });
+        await waitFor(() => page.locator("#toast-message").text(), "已完成一分钟呼吸");
+
+        await navigate("journal");
+        await show("journal");
+        await waitFor(() => page.locator(".journal-note-preview").text(), "兼容性测试记录");
+        expect(await page.locator(".journal-note-preview .ql-font-song").text()).toBe("测试");
+        await page.locator(".journal-open").click();
+        await waitFor(() => page.locator("#modal-title").text(), "小雨、微风 · 心情记录");
+        expect(await page.locator(".modal-diary-text .ql-font-song").text()).toBe("测试");
+        await page.byText("编辑", "button").click();
+        await show("weather");
+        await page.locator("#mood-note").fill("已修改的随笔");
+        await page.locator("#save-log-btn").click();
+        await show("journal");
+        await waitFor(() => page.locator(".journal-note-preview").text(), "已修改的随笔");
+        await page.locator(".journal-open").click();
+        await page.byText("删除记录", "button").click();
+        await page.byText("删除", "button").click();
+        await waitFor(() => page.locator("#toast-message").text(), "已删除记录");
+        await page.locator("#toast-action").click();
+        await waitFor(() => page.locator(".journal-note-preview").text(), "已修改的随笔");
+
+        if (width < 1024) await page.locator('#view-journal [data-go="insights"]').click();
+        else await navigate("insights");
+        await show("insights");
+        expect(await page.locator("#weather-calendar-grid .calendar-day").count()).toBe(30);
+        expect(await page.locator(".calendar-day.is-today .day-weather-bar [data-weather=rainy]").attribute("style")).toBe("flex-grow:0.5");
+        expect(await page.locator("#stat-total-days").text()).toBe("1 天");
+        await page.evaluate(() => {
+            MindSpaceStorage.saveLog("rainy", ["测试分组"], "第二条日记");
+            app.renderInsights();
+        });
+        expect(await page.locator(".calendar-day-count").property("textContent")).toBe("2");
+        expect(await page.locator(".calendar-day.is-today .day-weather-bar [data-weather=rainy]").attribute("style")).toBe("flex-grow:1.5");
+        expect(await page.locator(".calendar-day.is-today .day-weather-bar [data-weather=breezy]").attribute("style")).toBe("flex-grow:0.5");
+        expect(await page.locator("#weather-chart-container .rainy .chart-percent").text()).toBe("1.5 分");
+        expect(await page.locator("#weather-chart-container .breezy .chart-percent").text()).toBe("0.5 分");
+        await page.locator("#weather-calendar-grid .has-weather").click();
+        await show("journal");
+        expect(await page.locator("#journal-day-filter").visible()).toBe(true);
+        expect(await page.locator(".journal-card").count()).toBe(2);
+        await page.locator("#journal-search").fill("小雨 已修改");
+        await waitFor(() => page.locator(".journal-card").count(), 1);
+        expect(await page.locator(".journal-note-preview").text()).toBe("已修改的随笔");
+        const dayWeather = await page.locator("#journal-day-weather").text();
+        expect(dayWeather).toMatch(/小雨 1\.5 分/);
+        expect(dayWeather).toMatch(/微风 0\.5 分/);
+        await page.locator("#journal-clear-filters").click();
+        await waitFor(() => page.locator("#journal-day-filter").visible(), false);
+        expect(await page.locator(".journal-card").count()).toBe(2);
+
+        await navigate("dashboard");
+        expect(await page.locator(".welcome-card .lake-window").attribute("data-sky")).toBe("rainy");
+        expect(await page.locator(".today-weather-bar [data-weather=rainy]").attribute("style")).toBe("flex-grow:1.5");
+        expect(await page.locator(".today-weather-bar [data-weather=breezy]").attribute("style")).toBe("flex-grow:0.5");
+        expect(await page.locator(".week-day.is-today .day-weather-bar [data-weather=rainy]").attribute("style")).toBe("flex-grow:1.5");
+        expect(await page.locator(".week-day.is-today .day-weather-bar [data-weather=breezy]").attribute("style")).toBe("flex-grow:0.5");
+        await page.locator(".today-view-entries").click();
+        await show("journal");
+        expect(await page.locator("#journal-day-filter").visible()).toBe(true);
+        expect(await page.locator(".journal-card").count()).toBe(2);
+        await navigate("dashboard");
+        await page.locator(".practice-focus").click();
+        await show("focus");
+        await page.locator("#btn-timer-toggle").click();
+        await waitFor(() => page.locator("#timer-toggle-text").text(), "暂停");
+        await page.evaluate(() => {
+            MindSpaceFocusTimer.lastRun.startedAt -= 120_000;
+            MindSpaceFocusTimer.tick();
+        });
+        expect(await page.locator("#timer-digits").text()).toBe("23:00");
+        await page.locator("#btn-timer-toggle").click();
+        expect(await page.locator("#timer-toggle-text").text()).toBe("继续专注");
+
+        await navigate("weather");
+        await page.locator('[data-entry-mode="past"]').click();
+        const backfillDay = await page.evaluate(() => MindSpaceStorage.dateKey(app.recentDates(2)[0]));
+        await page.locator("#entry-date").fill(backfillDay.replaceAll("-", ""));
+        expect(await page.locator("#entry-date").property("value")).toBe(backfillDay.replaceAll("-", "/"));
+        await page.locator('[data-weather="sunny"] .weather-box').click();
+        await page.locator("#entry-time").fill("11");
+        expect(await page.locator("#entry-time").property("value")).toBe("11:");
+        await page.locator("#entry-confirm").click();
+        expect(await page.locator("#entry-time").attribute("aria-invalid")).toBe("true");
+        await page.locator("#entry-time").fill("1130");
+        expect(await page.locator("#entry-time").property("value")).toBe("11:30");
+        await page.locator("#entry-confirm").click();
+        expect(await page.locator("#entry-summary-time").text()).toBe(`${backfillDay} 11:30`);
+        expect(await page.locator(".entry-first-line-meta").text()).not.toMatch(/此刻心情|那时心情/);
+        await page.locator("#save-log-btn").click();
+        await show("journal");
+        expect(await page.locator(".journal-time").text()).toBe("11:30");
+
+        await navigate("settings");
+        await show("settings");
+        await page.locator("#btn-cloud-config").click();
+        expect(await page.locator("#cloud-config-modal").visible()).toBe(true);
+        await page.locator("#cloud-config-modal .modal-close-btn").click();
+        await page.locator("#btn-check-update").click();
+        await waitFor(() => page.locator("#modal-title").text(), /发现新版本/);
+        expect(await page.locator(".modal-content a").text()).toContain("MindSpace-9.0.0-Windows-Portable-x64.exe");
+        expect(await page.locator("#modal-body b").count()).toBe(0);
+        expect(await page.errors()).toEqual([]);
     });
-    expect(manifest.icons.map((icon) => icon.src)).toEqual(expect.arrayContaining([
-      `assets/icon-192.png?v=${APP_VERSION}`,
-      `assets/icon-512.png?v=${APP_VERSION}`,
-      `assets/icon-1024.png?v=${APP_VERSION}`
-    ]));
-    expect(manifest.icons).toHaveLength(3);
-
-    const cloudConfigState = await page.evaluate(() => ({
-      defaultUrl: window.SUPABASE_CONFIG?.url,
-      defaultAnonKey: window.SUPABASE_CONFIG?.anonKey,
-      isConfigured: window.SupabaseService?.isConfigured()
-    }));
-    expect(cloudConfigState).toEqual({
-      defaultUrl: "",
-      defaultAnonKey: "",
-      isConfigured: false
-    });
-    await page.locator(navigationSelector(page, "settings")).click();
-    await verify(() => page.locator("#view-settings").attribute("class"), /active/);
-    await verify(() => page.byText("当前数据保存在本地浏览器中。您可以配置云服务，开启多设备同步。").visible(), true);
-
-    const styleHealth = await page.evaluate(async () => {
-      const cssHref = document.querySelector('link[href^="css/style.css"]').getAttribute("href");
-      const cssText = await fetch(cssHref).then((response) => response.text());
-      return {
-        bodyFont: getComputedStyle(document.body).fontFamily,
-        hasWebkitAutofillGuard: cssText.includes(":-webkit-autofill") && cssText.includes("rgba(120, 120, 128, 0.16)"),
-        hasMozAutofillGuard: cssText.includes(":-moz-autofill"),
-        hasJournalBodyLayout: cssText.includes(".journal-card-body"),
-        hasJournalClamp: cssText.includes("-webkit-line-clamp")
-      };
-    });
-    expect(styleHealth.bodyFont).toContain("Noto Sans SC");
-    expect(styleHealth.hasWebkitAutofillGuard).toBe(true);
-    expect(styleHealth.hasMozAutofillGuard).toBe(true);
-    expect(styleHealth.hasJournalBodyLayout).toBe(true);
-    expect(styleHealth.hasJournalClamp).toBe(true);
-
-    await page.evaluate(() => {
-      const modal = document.querySelector("#auth-modal");
-      if (modal?.classList.contains("hidden") && window.SupabaseService) {
-        const originalIsConfigured = window.SupabaseService.isConfigured;
-        window.SupabaseService.isConfigured = () => true;
-        app.openAuthModal({ force: true });
-        window.SupabaseService.isConfigured = originalIsConfigured;
-      }
-    });
-    await verify(() => page.locator("#auth-modal").visible(), true);
-    await verify(() => page.locator("#auth-modal").attribute("data-force-auth"), "true");
-    await verify(() => page.locator("#auth-modal .modal-close-btn").attribute("class"), /hidden/);
-    await verify(() => page.locator("#login-form").property("noValidate"), true);
-    await page.locator("#login-email").fill("saved-account@example.com");
-    const filledEmailBackground = await page.locator("#login-email").evaluate((input) => getComputedStyle(input).backgroundColor);
-    expect(filledEmailBackground).not.toBe("rgb(255, 255, 255)");
-    await page.locator("#login-email").fill("");
-    await page.locator("#login-form .auth-submit-btn").click();
-    await verify(() => page.locator("#login-email-error").text(), "请输入邮箱地址。");
-    await verify(() => page.locator("#login-email").attribute("aria-invalid"), "true");
-
-    await page.evaluate(() => {
-      document.querySelector("#auth-modal").dataset.forceAuth = "false";
-      document.querySelector("#auth-modal").classList.add("hidden");
-      document.body.classList.remove("auth-gate-active");
-      app.authGateActive = false;
-    });
-    await verify(() => page.locator("#auth-modal").attribute("class"), /hidden/);
-
-    await page.locator(navigationSelector(page, "weather")).click();
-    await verify(() => page.locator("#view-weather").attribute("class"), /active/);
-    await page.locator("#mood-note").fill(`兼容性测试记录 - ${width + "px"}`);
-    await page.locator("#save-log-btn").click();
-    await verify(() => page.locator("#modal-container").visible(), true);
-    await verify(() => page.locator("#modal-title").text(), "已记入心空", true);
-    await page.byText("查看随笔", "button").click();
-    await verify(() => page.locator("#modal-container").attribute("class"), /hidden/);
-    await verify(() => page.locator("#view-journal").attribute("class"), /active/);
-    await verify(() => page.byText("兼容性测试记录").visible(), true);
-
-    await page.evaluate(async () => {
-      const longNote = `长随笔压测 ${"这是一段用于验证手机和桌面布局的长内容，应该被限制在文字区域内，不能压住删除按钮。".repeat(12)}`;
-      const logs = MindSpaceStorage.getLogs();
-      logs.push({
-        id: `compat-long-note-${Date.now()}`,
-        timestamp: Date.now() + 1000,
-        weather: "sunny",
-        tags: ["长随笔"],
-        note: longNote
-      });
-      localStorage.setItem(MindSpaceStorage.KEYS.LOGS, JSON.stringify(logs));
-      await app.renderJournalList();
-    });
-    const longJournalCard = page.xpath("//*[contains(concat(' ',normalize-space(@class),' '),' journal-card ') and contains(.,'长随笔压测')]");
-    await verify(() => longJournalCard.visible(), true);
-    const journalLayout = await longJournalCard.evaluate((card) => {
-      const note = card.querySelector(".journal-note-preview");
-      const button = card.querySelector(".journal-delete-btn");
-      const noteRect = note.getBoundingClientRect();
-      const buttonRect = button.getBoundingClientRect();
-      const overlaps = !(noteRect.right <= buttonRect.left || noteRect.left >= buttonRect.right || noteRect.bottom <= buttonRect.top || noteRect.top >= buttonRect.bottom);
-      const noteStyle = getComputedStyle(note);
-
-      return {
-        overlaps,
-        noteRight: noteRect.right,
-        buttonLeft: buttonRect.left,
-        overflowWrap: noteStyle.overflowWrap,
-        buttonWidth: buttonRect.width
-      };
-    });
-    expect(journalLayout.overlaps).toBe(false);
-    expect(journalLayout.noteRight).toBeLessThanOrEqual(journalLayout.buttonLeft);
-    expect(journalLayout.overflowWrap).toBe("anywhere");
-    expect(journalLayout.buttonWidth).toBeGreaterThanOrEqual(32);
-
-    await page.locator(navigationSelector(page, "insights")).click();
-    await verify(() => page.locator("#view-insights").attribute("class"), /active/);
-    await verify(() => page.locator("#weather-calendar-grid").visible(), true);
-    await verify(() => page.locator("#climate-gauge-value").text(), "100");
-    await verify(() => page.locator("#climate-gauge-status").text(), "澄澈");
-    await verify(() => page.byText("(点击圆点或悬浮查看随笔)").count(), 0);
-
-    const weightedClimateIndex = await page.evaluate(() => {
-      const day = 24 * 60 * 60 * 1000;
-      const now = Date.now();
-      return {
-        recentWeighted: app.calculateClimateIndex([
-          { timestamp: now - day, weather: "stormy" },
-          { timestamp: now - 6 * day, weather: "sunny" }
-        ], now),
-        stale: app.calculateClimateIndex([
-          { timestamp: now - 4 * day, weather: "sunny" },
-          { timestamp: now - 6 * day, weather: "sunny" }
-        ], now),
-        outsideWeek: app.calculateClimateIndex([
-          { timestamp: now - 8 * day, weather: "sunny" }
-        ], now)
-      };
-    });
-    expect(weightedClimateIndex.recentWeighted).toMatchObject({
-      score: 35,
-      reason: "ok",
-      usedCount: 2
-    });
-    expect(weightedClimateIndex.stale).toMatchObject({
-      score: null,
-      reason: "stale",
-      usedCount: 2
-    });
-    expect(weightedClimateIndex.outsideWeek).toMatchObject({
-      score: null,
-      reason: "empty",
-      usedCount: 0
-    });
-
-    const weatherDay = page.locator("#weather-calendar-grid .calendar-day.has-note").last();
-    await verify(() => weatherDay.visible(), true);
-    await verify(() => page.locator("#weather-calendar-grid .calendar-day-note-dot").count(), 0);
-
-    await page.locator(navigationSelector(page, "breathing")).click();
-    await verify(() => page.locator("#view-breathing").attribute("class"), /active/);
-    await verify(() => page.locator("#start-breath-btn").visible(), true);
-    const breathingSpacing = await page.evaluate(() => {
-      const layout = document.querySelector(".breathing-split-layout");
-      const controls = document.querySelector(".breathing-panel-controls");
-      const visual = document.querySelector(".breathing-panel-visual");
-      const layoutStyle = layout ? getComputedStyle(layout) : null;
-      const controlsRect = controls?.getBoundingClientRect();
-      const visualRect = visual?.getBoundingClientRect();
-
-      return {
-        viewportWidth: window.innerWidth,
-        display: layoutStyle?.display || "",
-        cssGap: parseFloat(layoutStyle?.rowGap || layoutStyle?.gap || "0"),
-        verticalGap: controlsRect && visualRect ? visualRect.top - controlsRect.bottom : 0
-      };
-    });
-    if (breathingSpacing.viewportWidth < 768) {
-      expect(breathingSpacing.display).toBe("flex");
-      expect(Math.max(breathingSpacing.cssGap, breathingSpacing.verticalGap)).toBeGreaterThanOrEqual(20);
-    }
-
-    await page.locator(navigationSelector(page, "focus")).click();
-    await verify(() => page.locator("#view-focus").attribute("class"), /active/);
-    await verify(() => page.byText("25:00").visible(), true);
-    await page.locator("#btn-timer-toggle").click();
-    await verify(() => page.locator("#timer-toggle-text").text(), "暂停");
-    const alarmImplementation = await page.evaluate(() => ({
-      hasGeneratedAlarm: typeof MindSpaceFocusTimer.playAlarm === "function",
-      hasRemoteAudioElement: Boolean(MindSpaceFocusTimer.alarmAudio),
-      hasLocalAudioContext: Boolean(MindSpaceFocusTimer.alarmAudioContext),
-      supportsAudioContext: Boolean(window.AudioContext || window.webkitAudioContext)
-    }));
-    expect(alarmImplementation.hasGeneratedAlarm).toBe(true);
-    expect(alarmImplementation.hasRemoteAudioElement).toBe(false);
-    expect(alarmImplementation.hasLocalAudioContext).toBe(alarmImplementation.supportsAudioContext);
-    await page.locator("#btn-timer-toggle").click();
-    await verify(() => page.locator("#timer-toggle-text").text(), "继续专注");
-
-    await page.locator(navigationSelector(page, "settings")).click();
-    await verify(() => page.locator("#view-settings").attribute("class"), /active/);
-    await verify(() => page.byText("导出并下载我的心声随笔").visible(), true);
-    await verify(() => page.locator("#current-app-version").text(), `v${APP_VERSION}`);
-    await page.locator("#btn-check-update").click();
-    await verify(() => page.locator("#modal-title").text(), "发现新版本 🎉");
-    await verify(() => page.locator("#modal-body").text(), "<b>兼容性测试更新</b>", true);
-    await verify(() => page.locator("#modal-body a").text(), /MindSpace-1\.2\.0-Windows-Portable-x64\.exe/);
-    await page.byText("稍后更新", "button").click();
-    await verify(() => page.locator("#modal-container").attribute("class"), /hidden/);
-
-    const serviceWorkerSupported = await page.evaluate(() => "serviceWorker" in navigator);
-    expect(serviceWorkerSupported).toBe(true);
-
-    expect(await page.errors()).toEqual([]);
-  });
 }

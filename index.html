@@ -2,247 +2,207 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MindSpace - 心空</title>
-    <meta name="description" content="MindSpace 是一款本地优先、零压力、非批判性的心理健康与正念呼吸引导助手。">
-    <meta name="theme-color" content="#F5F5F7">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>MindSpace</title>
+    <meta name="description" content="MindSpace 是一款无需注册的心情日记，支持一分钟呼吸、专注计时和自然环境声。">
+    <meta name="theme-color" content="#f5f8f6">
     <meta name="application-name" content="MindSpace">
     <meta name="apple-mobile-web-app-title" content="MindSpace">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <link rel="manifest" href="manifest.webmanifest?v=1.1.1">
-    <link rel="icon" href="assets/icon-512.png?v=1.1.1" sizes="512x512" type="image/png">
-    <link rel="shortcut icon" href="favicon.ico?v=1.1.1">
-    <link rel="apple-touch-icon" href="assets/icon-192.png?v=1.1.1">
-    <!-- Native system fonts will be utilized for unified typography and fast offline performance -->
-    <!-- Ionicons for beautiful modern icons -->
-    <script type="module" src="https://cdn.jsdelivr.net/npm/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
-    <script nomodule src="https://cdn.jsdelivr.net/npm/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
-    <link rel="stylesheet" href="css/style.css?v=1.1.1">
+    <link rel="manifest" href="manifest.webmanifest?v=1.2.72">
+    <link rel="icon" href="assets/favicon.png?v=1.2.72" sizes="64x64" type="image/png">
+    <link rel="apple-touch-icon" href="assets/icon-192.png?v=1.2.72">
+    <link rel="stylesheet" href="css/style.css?v=1.2.72">
+    <link rel="stylesheet" href="css/weather.css?v=1.2.72">
+    <link rel="stylesheet" href="css/practices.css?v=1.2.72">
+    <link rel="stylesheet" href="css/review-settings.css?v=1.2.72">
 </head>
 <body>
     <!-- App Container with responsive layouts -->
     <div id="app-container">
+        <a id="skip-to-content" class="skip-link" href="#app-content" tabindex="0">跳到主要内容</a>
         
-        <!-- Sidebar Navigation (Desktop only) -->
         <aside id="desktop-sidebar">
-            <div class="sidebar-logo">
-                <span class="logo-dot"></span>
-                <h2>MindSpace <span class="logo-sub">心空</span></h2>
-            </div>
-            
-            <nav class="sidebar-menu">
-                <button class="sidebar-item active" data-view="dashboard">
-                    <ion-icon name="home-outline"></ion-icon>
-                    <span>首页看板</span>
-                </button>
-                <button class="sidebar-item" data-view="weather">
-                    <ion-icon name="partly-sunny-outline"></ion-icon>
-                    <span>内心天气</span>
-                </button>
-                <button class="sidebar-item" data-view="breathing">
-                    <ion-icon name="infinite-outline"></ion-icon>
-                    <span>正念呼吸</span>
-                </button>
-                <button class="sidebar-item" data-view="focus">
-                    <ion-icon name="hourglass-outline"></ion-icon>
-                    <span>静心专注</span>
-                </button>
-                <button class="sidebar-item" data-view="journal">
-                    <ion-icon name="book-outline"></ion-icon>
-                    <span>心声随笔</span>
-                </button>
-                <button class="sidebar-item" data-view="insights">
-                    <ion-icon name="map-outline"></ion-icon>
-                    <span>气象导图</span>
-                </button>
-                <button class="sidebar-item" data-view="settings">
-                    <ion-icon name="shield-checkmark-outline"></ion-icon>
-                    <span>数据与安全</span>
-                </button>
+            <button type="button" class="sidebar-logo" data-go="dashboard" aria-label="MindSpace 首页">
+                <img class="brand-mark" src="assets/favicon.png?v=1.2.72" width="40" height="40" alt="">
+                <span class="brand-name" lang="en">MindSpace</span>
+            </button>
+            <nav class="sidebar-menu" aria-label="主导航">
+                <button type="button" class="sidebar-item active" data-view="dashboard"><ion-icon name="home-outline"></ion-icon><span>今日</span></button>
+                <button type="button" class="sidebar-item" data-view="weather"><ion-icon name="partly-sunny-outline"></ion-icon><span>记录心情</span></button>
+                <button type="button" class="sidebar-item" data-view="breathing"><ion-icon name="leaf-outline"></ion-icon><span>呼吸练习</span></button>
+                <button type="button" class="sidebar-item" data-view="focus"><ion-icon name="timer-outline"></ion-icon><span>专注与声音</span></button>
+                <button type="button" class="sidebar-item" data-view="journal"><ion-icon name="book-outline"></ion-icon><span>心情日记</span></button>
+                <button type="button" class="sidebar-item" data-view="insights"><ion-icon name="calendar-outline"></ion-icon><span>天气回顾</span></button>
             </nav>
-
             <div class="sidebar-footer">
-                <button id="sidebar-auth-btn" class="icon-btn auth-status-btn offline" aria-label="账户状态" style="width: 100%; border-radius: 14px; display: flex; gap: 8px; justify-content: center; align-items: center; padding: 10px;">
-                    <ion-icon name="cloud-offline-outline" id="sidebar-auth-icon"></ion-icon>
-                    <span id="sidebar-auth-text" style="font-size: 0.85rem;">未登录</span>
-                </button>
-                <button id="sidebar-theme-toggle" aria-label="切换主题" class="icon-btn" style="width: 100%; border-radius: 14px; display: flex; gap: 8px; justify-content: center; align-items: center; padding: 10px;">
-                    <ion-icon name="moon-outline" class="sidebar-theme-icon"></ion-icon>
-                    <span style="font-size: 0.85rem;">切换主题</span>
+                <button type="button" class="sidebar-item" data-view="settings"><ion-icon name="settings-outline"></ion-icon><span>设置</span></button>
+                <button type="button" id="sidebar-auth-btn" class="sidebar-item auth-status-btn offline">
+                    <ion-icon id="sidebar-auth-icon" name="shield-checkmark-outline"></ion-icon><span id="sidebar-auth-text">本地模式</span>
                 </button>
             </div>
         </aside>
 
-        <!-- Main Content Area -->
-        <div id="app-main-layout">
-            <!-- Header (Mobile only) -->
+        <div class="main-shell">
             <header id="main-header">
-                <div class="header-logo">
-                    <span class="logo-dot"></span>
-                    <h1>MindSpace <span class="logo-sub">心空</span></h1>
-                </div>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <button id="mobile-auth-btn" class="icon-btn auth-status-btn" aria-label="账户状态">
-                        <ion-icon name="cloud-offline-outline" id="mobile-auth-icon"></ion-icon>
-                        <span class="icon-fallback">账户</span>
+                <button type="button" class="header-logo" data-go="dashboard" aria-label="MindSpace 首页">
+                    <img class="brand-mark" src="assets/favicon.png?v=1.2.72" width="32" height="32" alt="">
+                    <span class="brand-name" lang="en">MindSpace</span>
+                </button>
+                <span id="header-view-title">今日</span>
+                <div class="header-actions">
+                    <button type="button" id="focus-indicator" class="focus-indicator" data-go="focus" aria-label="查看进行中的专注计时" hidden>
+                        <ion-icon name="timer-outline"></ion-icon><span id="focus-indicator-time" aria-hidden="true"></span>
                     </button>
-                    <button id="theme-toggle" aria-label="切换主题" class="icon-btn">
-                        <ion-icon name="moon-outline" id="theme-icon"></ion-icon>
-                        <span class="icon-fallback">主题</span>
-                    </button>
+                    <button type="button" id="theme-toggle" class="icon-btn" aria-label="切换主题"><ion-icon name="moon-outline" id="theme-icon"></ion-icon><span class="desktop-theme-text">切换主题</span></button>
+                    <button type="button" id="mobile-auth-btn" class="icon-btn auth-status-btn offline" aria-label="数据与账户"><ion-icon name="shield-checkmark-outline" id="mobile-auth-icon"></ion-icon></button>
                 </div>
             </header>
 
-            <!-- Main Workspace (SPA Views) -->
-            <main id="app-content">
-                
-                <!-- 1. Dashboard View -->
-                <section id="view-dashboard" class="app-view active">
+            <main id="app-content" tabindex="-1">
+                <section id="view-dashboard" class="app-view active" aria-labelledby="greeting-text">
                     <div class="dashboard-grid">
-                        
-                        <!-- Widget 1: Time-aware Greeting -->
-                        <div class="welcome-card card widget-span-8">
-                            <div class="welcome-text">
-                                <h2 id="greeting-text">你好，旅人</h2>
-                                <p id="greeting-sub">无论此刻你的内心是晴是雨，都在这里安歇片刻吧。</p>
-                            </div>
-                        </div>
-
-                        <!-- Widget 3: Today's Inner Weather -->
-                        <div class="today-weather-card card widget-span-4" id="widget-today-weather">
-                            <h4><ion-icon name="cloudy-outline"></ion-icon>今日内心天气</h4>
-                            <div class="widget-placeholder">
-                                <div class="placeholder-content">
-                                    <ion-icon name="cloudy-night-outline" class="placeholder-icon"></ion-icon>
-                                    <p>今天的心空还没有留下痕迹，去记录一次吧。</p>
+                        <div class="welcome-card">
+                            <div class="welcome-banner">
+                                <div class="welcome-text">
+                                    <time id="dashboard-date"></time>
+                                    <h1 id="greeting-text">你好，旅人</h1>
                                 </div>
-                                <button class="primary-btn small-btn" style="flex-shrink: 0;" onclick="app.router.navigate('weather')">去记录</button>
-                            </div>                        </div>
-
-                        <!-- Widget 2: Mindfulness Rings Widget -->
-                        <div class="rings-card card widget-span-4">
-                            <h4><ion-icon name="heart-half-outline"></ion-icon>今日正念健康环</h4>
-                            <div class="rings-visual-wrapper">
-                                <svg class="rings-svg" viewBox="0 0 150 150">
-                                    <!-- Focus ring (Outer, Blue Accent) -->
-                                    <circle class="ring-bg focus-ring-bg" cx="75" cy="75" r="55"></circle>
-                                    <circle class="ring-progress focus-ring-progress" cx="75" cy="75" r="55" stroke-dasharray="345.57" stroke-dashoffset="345.57"></circle>
-                                    
-                                    <!-- Breathing ring (Inner, Sage Green/Orange Accent) -->
-                                    <circle class="ring-bg breathing-ring-bg" cx="75" cy="75" r="40"></circle>
-                                    <circle class="ring-progress breathing-ring-progress" cx="75" cy="75" r="40" stroke-dasharray="251.32" stroke-dashoffset="251.32"></circle>
-                                </svg>
-                                <div class="rings-legend">
-                                    <div class="legend-item focus-color">
-                                        <span class="legend-dot"></span>
-                                        <span id="focus-ring-text">⏱️ 专注: 0 / 50分钟</span>
-                                    </div>
-                                    <div class="legend-item breathing-color">
-                                        <span class="legend-dot"></span>
-                                        <span id="breathing-ring-text">🧘 呼吸: 0 / 10分钟</span>
-                                    </div>
-                                </div>
+                                <div class="lake-window" aria-hidden="true"><span class="lake-painting"></span><span class="lake-air"></span></div>
                             </div>
+                            <section class="today-weather-card" id="widget-today-weather"></section>
                         </div>
 
-                        <!-- Widget 4: Weekly Climate Outlook -->
-                        <div class="weekly-trends-card card widget-span-8" id="widget-weekly-trends">
-                            <h4><ion-icon name="pulse-outline"></ion-icon>本周气候趋势</h4>
-                            <div class="trends-chart-container" id="trends-chart-container">
-                                <div class="chart-empty">本周心空尚未留下气象痕迹，待你落笔描摹。</div>
+                        <section class="weekly-trends-card">
+                            <div class="dashboard-heading">
+                                <h2>七日心情</h2>
+                                <button type="button" class="text-btn" data-go="insights">天气回顾 <ion-icon name="chevron-forward-outline"></ion-icon></button>
                             </div>
-                        </div>
+                            <div class="trends-chart-container" id="trends-chart-container"></div>
+                        </section>
 
-                        <!-- Widget 5: Latest Journal Preview -->
-                        <div class="journal-preview-card card widget-span-8" id="widget-journal-preview">
-                            <h4><ion-icon name="book-outline"></ion-icon>最新心声随笔</h4>
-                            <div id="journal-preview-content">
-                                <p class="empty-preview">写下今日第一声内心絮语，留存温润心迹。</p>
+                        <section class="rings-card">
+                            <h2>呼吸与专注</h2>
+                            <div class="practice-grid" role="group" aria-label="快捷练习">
+                                <button type="button" class="practice-card practice-breath" data-quick-breath>
+                                    <span class="practice-icon"><ion-icon name="leaf-outline"></ion-icon></span>
+                                    <span class="practice-copy"><strong>呼吸一分钟</strong><small id="breathing-ring-text"></small><progress id="breathing-progress" aria-label="今日呼吸目标 10 分钟" max="600" value="0"></progress></span>
+                                    <ion-icon class="practice-arrow" name="chevron-forward-outline"></ion-icon>
+                                </button>
+                                <button type="button" class="practice-card practice-focus" data-go="focus">
+                                    <span class="practice-icon"><ion-icon name="headset-outline"></ion-icon></span>
+                                    <span class="practice-copy"><strong>专注与声音</strong><small id="focus-ring-text"></small><progress id="focus-progress" aria-label="今日专注目标 50 分钟" max="3000" value="0"></progress></span>
+                                    <ion-icon class="practice-arrow" name="chevron-forward-outline"></ion-icon>
+                                </button>
                             </div>
-                        </div>
+                        </section>
 
-                        <!-- Widget 6: Daily Inspiration Quote -->
-                        <div class="quote-card card widget-span-4">
-                            <ion-icon name="sparkles-outline" class="quote-icon-decor"></ion-icon>
-                            <p id="quote-content">"慢慢来，最慢的步伐也是在向前走。"</p>
-                            <span id="quote-author">— 暖心树洞</span>
-                        </div>
-
+                        <section class="journal-preview-card">
+                            <div class="dashboard-heading">
+                                <h2>最近的随笔</h2>
+                                <button type="button" class="text-btn" data-go="journal">日记 <ion-icon name="chevron-forward-outline"></ion-icon></button>
+                            </div>
+                            <div id="journal-preview-content"></div>
+                        </section>
                     </div>
                 </section>
 
                 <!-- 2. Weather/Mood Log View -->
-                <section id="view-weather" class="app-view">
-                    <div class="section-title">
-                        <h2>此刻的内心天气</h2>
-                        <p>给现在的情绪找个天然的代名词，接纳它的一切。</p>
-                    </div>
-
-                    <!-- PC Split Layout for Weather form -->
+                <section id="view-weather" class="app-view" data-entry-step="setup">
                     <div class="weather-split-layout">
-                        <!-- Left pane: Weather selection -->
-                        <div class="weather-pane-left">
-                            <div class="weather-selector-card card">
-                                <h3>选择内心天气</h3>
-                                <div class="weather-selector-grid">
+                        <h1 class="entry-page-title" tabindex="-1">记录心情</h1>
+                        <div id="entry-setup">
+                            <div class="entry-paper-header">
+                                <div class="entry-mode" role="group" aria-label="记录时段">
+                                    <button type="button" data-entry-mode="now" aria-pressed="true">此刻心情</button>
+                                    <button type="button" data-entry-mode="past" aria-pressed="false" aria-controls="entry-past-time">那时心情</button>
+                                </div>
+                                <div class="entry-time-slot">
+                                    <div id="entry-past-time" class="entry-past-time" hidden>
+                                        <div class="entry-time-fields">
+                                            <label>日期
+                                                <span class="entry-masked-field">
+                                                    <input type="text" id="entry-date" data-entry-mask="YYYY/MM/DD" inputmode="numeric" maxlength="10" autocomplete="off" aria-describedby="entry-date-format entry-time-status" required>
+                                                    <span class="entry-mask-guide" aria-hidden="true"><span></span><span>YYYY/MM/DD</span></span>
+                                                </span>
+                                            </label>
+                                            <label>时间
+                                                <span class="entry-masked-field">
+                                                    <input type="text" id="entry-time" data-entry-mask="HH:MM" inputmode="numeric" maxlength="5" autocomplete="off" aria-describedby="entry-clock-format entry-time-status" required>
+                                                    <span class="entry-mask-guide" aria-hidden="true"><span></span><span>HH:MM</span></span>
+                                                </span>
+                                            </label>
+                                        </div>
+                                        <span id="entry-date-format" class="visually-hidden">依次输入四位年份、两位月份和两位日期</span>
+                                        <span id="entry-clock-format" class="visually-hidden">输入两位小时和两位分钟，使用 24 小时制</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <section class="entry-mood-picker" aria-label="选择心情">
+                                <div class="weather-selector-grid" role="group" aria-label="心情选项">
                                     <label class="weather-option" data-weather="sunny">
-                                        <input type="radio" name="selected-weather" value="sunny" checked>
+                                        <input type="checkbox" name="selected-weather" value="sunny">
                                         <div class="weather-box">
                                             <div class="weather-visual sunny-anim">
-                                                <ion-icon name="sunny" class="sun-core"></ion-icon>
-                                                <div class="sun-halo"></div>
+                                                <svg class="wx-svg" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                    <g class="sun-core">
+                                                        <path d="M24 4v5m0 30v5M4 24h5m30 0h5M10 10l3.5 3.5m21 21L38 38M10 38l3.5-3.5m21-21L38 10"/>
+                                                        <circle cx="24" cy="24" r="9.7" fill="#edbf67"/>
+                                                    </g>
+                                                </svg>
                                             </div>
                                             <span class="weather-label">晴朗</span>
                                         </div>
                                     </label>
 
                                     <label class="weather-option" data-weather="breezy">
-                                        <input type="radio" name="selected-weather" value="breezy">
+                                        <input type="checkbox" name="selected-weather" value="breezy">
                                         <div class="weather-box">
                                             <div class="weather-visual breezy-anim">
-                                                <ion-icon name="leaf" class="leaf-icon"></ion-icon>
-                                                <div class="wind-trail wind-trail-1"></div>
-                                                <div class="wind-trail wind-trail-2"></div>
+                                                <svg class="wx-svg" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                    <path class="wind-trail wind-trail-1" d="M5 19h10c5 0 6-5 3-6"/>
+                                                    <path class="wind-trail wind-trail-2" d="M4 28h15m-10 6h7"/>
+                                                    <g class="leaf-icon"><path d="M20 30c-1-10 7-15 22-18 0 12-5 22-17 21" fill="var(--tone-bg)"/><path d="M18 37c5-7 11-12 17-16"/></g>
+                                                </svg>
                                             </div>
                                             <span class="weather-label">微风</span>
                                         </div>
                                     </label>
 
                                     <label class="weather-option" data-weather="cloudy">
-                                        <input type="radio" name="selected-weather" value="cloudy">
+                                        <input type="checkbox" name="selected-weather" value="cloudy">
                                         <div class="weather-box">
                                             <div class="weather-visual cloudy-anim">
-                                                <ion-icon name="cloudy" class="cloud-front"></ion-icon>
-                                                <ion-icon name="cloud" class="cloud-back"></ion-icon>
+                                                <svg class="wx-svg" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                    <path class="cloud-back" d="M22 25h14a6 6 0 0 0 0-12 8 8 0 0 0-15-1 6.7 6.7 0 0 0 1 13Z" fill="var(--tone-bg)"/>
+                                                    <path class="cloud-front" d="M13 36h20a7 7 0 0 0 1-14 10 10 0 0 0-19-1 7.6 7.6 0 1 0-2 15Z" fill="var(--surface)"/>
+                                                </svg>
                                             </div>
                                             <span class="weather-label">阴天</span>
                                         </div>
                                     </label>
 
                                     <label class="weather-option" data-weather="foggy">
-                                        <input type="radio" name="selected-weather" value="foggy">
+                                        <input type="checkbox" name="selected-weather" value="foggy">
                                         <div class="weather-box">
                                             <div class="weather-visual foggy-anim">
-                                                <ion-icon name="cloud" class="fog-cloud"></ion-icon>
-                                                <div class="fog-mist fog-mist-1"></div>
-                                                <div class="fog-mist fog-mist-2"></div>
+                                                <svg class="wx-svg" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                    <path class="fog-cloud" d="M10 25a6 6 0 0 1 3-11 9 9 0 0 1 17-1 6.2 6.2 0 0 1 4 12" fill="var(--tone-bg)"/>
+                                                    <g class="fog-mist fog-mist-1"><path d="M5 27h22m5 0h6M12 38h17"/></g><path class="fog-mist fog-mist-2" d="M12 32h30"/>
+                                                </svg>
                                             </div>
                                             <span class="weather-label">大雾</span>
                                         </div>
                                     </label>
 
                                     <label class="weather-option" data-weather="rainy">
-                                        <input type="radio" name="selected-weather" value="rainy">
+                                        <input type="checkbox" name="selected-weather" value="rainy">
                                         <div class="weather-box">
                                             <div class="weather-visual rainy-anim">
-                                                <svg class="wx-svg" viewBox="0 0 44 38" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                    <!-- Cloud -->
-                                                    <path class="wx-cloud" d="M10 26h22a5 5 0 0 0 0-10a8 8 0 0 0-9-6a9 9 0 0 0-11 6a6 6 0 0 0-2 10z" fill="currentColor" opacity="0.6"/>
-                                                    <!-- Rain streaks (shorter) -->
-                                                    <line class="wx-drop wx-drop-1" x1="15" y1="27" x2="13.2" y2="32" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                                                    <line class="wx-drop wx-drop-2" x1="22" y1="27" x2="20.2" y2="32" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                                                    <line class="wx-drop wx-drop-3" x1="29" y1="27" x2="27.2" y2="32" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                                                <svg class="wx-svg" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                    <path class="wx-cloud" d="M12 28h22a7 7 0 0 0 1-14 10 10 0 0 0-19-1 7.9 7.9 0 0 0-4 15Z" fill="var(--tone-bg)"/>
+                                                    <g class="rain-strokes"><path class="wx-drop wx-drop-1" d="m16 32-2 5"/><path class="wx-drop wx-drop-2" d="m24 33-2 6"/><path class="wx-drop wx-drop-3" d="m32 32-2 5"/></g>
                                                 </svg>
                                             </div>
                                             <span class="weather-label">小雨</span>
@@ -250,105 +210,120 @@
                                     </label>
 
                                     <label class="weather-option" data-weather="stormy">
-                                        <input type="radio" name="selected-weather" value="stormy">
+                                        <input type="checkbox" name="selected-weather" value="stormy">
                                         <div class="weather-box">
                                             <div class="weather-visual stormy-anim">
-                                                <svg class="wx-svg" viewBox="0 0 44 38" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                    <!-- Dark cloud -->
-                                                    <path class="wx-cloud" d="M10 26h22a5 5 0 0 0 0-10a8 8 0 0 0-9-6a9 9 0 0 0-11 6a6 6 0 0 0-2 10z" fill="currentColor" opacity="0.75"/>
-                                                    <!-- Rain streaks -->
-                                                    <line class="wx-drop wx-drop-1" x1="15" y1="27" x2="12" y2="35" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                                                    <line class="wx-drop wx-drop-2" x1="22" y1="27" x2="19" y2="35" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                                                    <line class="wx-drop wx-drop-3" x1="29" y1="27" x2="26" y2="35" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                                                    <!-- Lightning bolt (larger) -->
-                                                    <polyline class="wx-lightning" points="24,19 19,27 23,27 17,36" stroke="#FFD940" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                                                <svg class="wx-svg" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                    <path class="wx-cloud" d="M12 28h22a7 7 0 0 0 1-14 10 10 0 0 0-19-1 7.9 7.9 0 0 0-4 15Z" fill="currentColor" fill-opacity=".42"/>
+                                                    <path class="wx-lightning" d="m26 20-9 12h7l-3 10 13-16h-9l3-6Z" fill="#f4c766"/>
                                                 </svg>
                                             </div>
                                             <span class="weather-label">雷雨</span>
                                         </div>
                                     </label>
                                 </div>
-                            </div>
-                            
-                            <div class="tags-container card">
-                                <h3>是什么伴随了这种内心天气？(可选)</h3>
-                                <div id="mood-tags-list" class="tags-list">
-                                    <!-- Filled by JS -->
+                            </section>
+                            <div class="entry-setup-footer">
+                                <div>
+                                    <p id="entry-setup-status" class="form-status" role="status"></p>
+                                    <p id="entry-time-status" class="form-status" role="status"></p>
                                 </div>
-                                <div class="custom-tag-input-row">
-                                    <input type="text" id="custom-tag-input" placeholder="输入自定义标签..." maxlength="10">
-                                    <button id="add-custom-tag-btn" class="text-btn">添加</button>
-                                </div>
+                                <button type="button" id="entry-confirm" class="primary-btn">开始写随笔<ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon></button>
                             </div>
                         </div>
-
-                        <!-- Right pane: tags & text area -->
-                        <div class="weather-pane-right card">
-                            <h3>内心絮语 (可选)</h3>
-                            <div class="diary-input-container">
-                                <textarea id="mood-note" placeholder="在这里写下你的胡思乱想、焦虑、或是小确幸... 只有你能看见。" rows="4"></textarea>
+                        <div id="entry-writing" hidden>
+                            <header class="entry-first-line">
+                                <div class="entry-first-line-meta">
+                                    <time id="entry-summary-time"></time>
+                                    <span id="entry-summary-moods"></span>
+                                </div>
+                                <button type="button" id="entry-change" class="text-btn" aria-label="修改记录时间和心情">修改</button>
+                            </header>
+                            <div id="journal-editor"></div>
+                        </div>
+                        <footer class="weather-form-footer">
+                            <div class="entry-tools">
+                                <details id="tag-details" class="entry-tool mood-details">
+                                    <summary><ion-icon name="pricetag-outline"></ion-icon><span>标签</span><small id="tag-summary"></small></summary>
+                                    <div class="entry-popover entry-tag-panel">
+                                        <div id="mood-tags-list" class="tags-list"></div>
+                                        <div class="custom-tag-input-row">
+                                            <input type="text" id="custom-tag-input" aria-label="自定义标签" placeholder="自定义标签" maxlength="10">
+                                            <button type="button" id="add-custom-tag-btn" class="text-btn">添加</button>
+                                        </div>
+                                    </div>
+                                </details>
+                                <details id="font-details" class="entry-tool entry-font-details">
+                                    <summary title="更换随笔字体"><span class="visually-hidden">随笔字体，</span><span id="font-summary">系统默认</span></summary>
+                                    <div class="entry-popover entry-font-panel" role="group" aria-label="随笔字体">
+                                        <button type="button" data-font-choice="system" aria-pressed="true">系统默认</button>
+                                        <button type="button" data-font-choice="song" aria-pressed="false">宋体</button>
+                                        <button type="button" data-font-choice="kai" aria-pressed="false">文楷</button>
+                                        <button type="button" data-font-choice="fangsong" data-font-family="MindSpace Fangsong" data-font-source="assets/fonts/zhuque-fangsong-v0.212.woff2" aria-pressed="false">朱雀仿宋</button>
+                                        <button type="button" data-font-choice="xihei" aria-pressed="false">霞鹜新晰黑</button>
+                                    </div>
+                                </details>
                             </div>
-                            
-                            <!-- Save Action -->
-                            <div class="action-bar" style="margin-top: auto; width: 100%; display: flex; justify-content: flex-end; padding-top: 12px;">
-                                <button id="save-log-btn" class="primary-btn">
-                                    <ion-icon name="checkmark-circle-outline"></ion-icon> 记在心空
+                            <div class="entry-actions">
+                                <button type="button" id="cancel-edit-btn" class="text-btn hidden">取消编辑</button>
+                                <span id="mood-note-count">0 / 12,000</span>
+                                <button type="button" id="save-log-btn" class="primary-btn">
+                                    <ion-icon name="checkmark-circle-outline"></ion-icon> 保存记录
                                 </button>
                             </div>
-                        </div>
+                            <p id="weather-status" class="form-status" role="status"></p>
+                        </footer>
                     </div>
                 </section>
 
                 <!-- 3. Breathing Cabin View -->
                 <section id="view-breathing" class="app-view">
                     <div class="section-title">
-                        <h2>正念呼吸舱</h2>
-                        <p>将焦点拉回到一呼一吸之间，感受当下的平静。</p>
+                        <h1>呼吸练习</h1>
+                        <p>按舒服的节奏呼吸，随时可以结束。</p>
                     </div>
 
-                    <div class="breathing-split-layout">
-                        <!-- Controls panel -->
-                        <div class="breathing-panel-controls card">
-                            <div class="breathing-modes">
-                                <div class="mode-selector">
-                                    <button class="mode-tab active" data-rhythm="478">4-7-8 深度安神</button>
-                                    <button class="mode-tab" data-rhythm="55">5-5 平衡呼吸</button>
+                    <div class="breathing-split-layout card">
+                        <div class="breathing-panel-visual">
+                            <div class="breath-session-time" id="breath-total-time"></div>
+                            <div class="breath-stage" id="breath-stage">
+                                <div class="breath-glow" aria-hidden="true"></div>
+                                <div class="breath-cue">
+                                    <span id="breath-phase-seconds" role="timer" aria-label="当前阶段剩余秒数"></span>
+                                    <span id="breath-phase-label" lang="en" aria-hidden="true">
+                                        <span data-phase="inhale">Inhale</span>
+                                        <span data-phase="hold">Hold</span>
+                                        <span data-phase="exhale">Exhale</span>
+                                    </span>
                                 </div>
-                                <div class="timer-display" id="breath-total-time">本次已专注: 00:00</div>
+                                <span id="breath-instruction" class="visually-hidden" aria-live="polite"></span>
                             </div>
-
-                            <!-- Dynamic Mode Description -->
-                            <div class="breath-mode-desc" id="breath-mode-desc">
-                                <div class="desc-rhythm"><span class="rhythm-badge">4-7-8</span> 吸气 4秒 → 憋气 7秒 → 呼气 8秒</div>
-                                <p class="desc-text">源自古印度瑜伽的呼吸技术，被公认为“天然的镇静剂”。通过延长呼气时间，激活副交感神经，有助于迅速降低焦虑、平复心率并帮助入眠。</p>
+                            <div class="breath-session-bar">
+                                <div class="breathing-controls">
+                                    <button type="button" id="start-breath-btn" class="primary-btn large-btn" aria-describedby="breath-mode-desc">
+                                        <ion-icon name="play-outline"></ion-icon> 开始练习
+                                    </button>
+                                    <button type="button" id="stop-breath-btn" class="secondary-btn hidden">
+                                        <ion-icon name="stop-outline"></ion-icon> 结束练习
+                                    </button>
+                                </div>
                             </div>
-
+                        </div>
+                        <div class="breathing-panel-controls">
+                            <h2 id="rhythm-heading">呼吸节奏</h2>
+                            <div class="mode-selector" role="group" aria-labelledby="rhythm-heading">
+                                <button type="button" class="mode-tab active" data-rhythm="55" aria-pressed="true">平衡呼吸</button>
+                                <button type="button" class="mode-tab" data-rhythm="478" aria-pressed="false">慢呼吸</button>
+                            </div>
+                            <div id="breath-mode-desc"></div>
                             <div class="breath-extra-options">
                                 <label class="option-toggle">
+                                    <span class="toggle-label">节奏提示音</span>
                                     <input type="checkbox" id="breath-sound-prompt">
                                     <span class="toggle-slider"></span>
-                                    <span class="toggle-label">阶段切换提示音</span>
                                 </label>
                             </div>
 
-                            <div class="breathing-controls desktop-only-margin" style="width: 100%; display: flex; justify-content: center;">
-                                <button id="start-breath-btn" class="primary-btn large-btn" style="max-width: 280px;">
-                                    <ion-icon name="play-outline"></ion-icon> 开始正念
-                                </button>
-                                <button id="stop-breath-btn" class="secondary-btn hidden" style="max-width: 280px;">
-                                    <ion-icon name="stop-outline"></ion-icon> 结束
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Visualizer panel -->
-                        <div class="breathing-panel-visual card">
-                            <div class="breath-visualizer-container">
-                                <canvas id="breath-particle-canvas"></canvas>
-                                <div class="breath-outer-ring"></div>
-                                <div class="breath-orb" id="breath-orb"></div>
-                                <div class="breath-guide-text" id="breath-instruction"></div>
-                            </div>
                         </div>
                     </div>
                 </section>
@@ -356,37 +331,28 @@
                 <!-- 3.5 Focus Cabin View -->
                 <section id="view-focus" class="app-view">
                     <div class="section-title">
-                        <h2>静心专注舱</h2>
-                        <p>在一呼一吸与大自然的潮汐声中，寻回当下的专注与平静。</p>
+                        <h1>专注与声音</h1>
+                        <p>计时专注，也可以单独听环境声。</p>
                     </div>
 
                     <div class="focus-split-layout">
-                        <!-- Left pane: Circular Pomodoro Timer -->
+                        <!-- Focus timer -->
                         <div class="focus-pane-left card">
-                            <!-- Background Ripple Waves -->
-                            <div class="focus-ripple-container">
-                                <div class="focus-ripple ripple-1"></div>
-                                <div class="focus-ripple ripple-2"></div>
-                                <div class="focus-ripple ripple-3"></div>
-                            </div>
-
-                            <div class="timer-visual-wrapper">
-                                <svg class="timer-svg" viewBox="0 0 220 220">
-                                    <circle class="timer-circle-bg" cx="110" cy="110" r="95"></circle>
-                                    <circle class="timer-circle-progress" cx="110" cy="110" r="95" stroke-dasharray="596.9" stroke-dashoffset="0"></circle>
+                            <div class="focus-time">
+                                <svg class="focus-dial" viewBox="0 0 220 220" aria-hidden="true">
+                                    <circle class="focus-dial-track" cx="110" cy="110" r="102"></circle>
+                                    <circle class="focus-dial-remaining" id="focus-dial-remaining" cx="110" cy="110" r="102"></circle>
                                 </svg>
-                                <div class="timer-text-container">
-                                    <span id="timer-digits">25:00</span>
-                                    <span id="timer-label">专注于当下</span>
-                                </div>
+                                <span id="timer-digits" role="timer" aria-label="剩余时间">25:00</span>
+                                <span id="timer-label" aria-live="polite">准备专注</span>
                             </div>
 
                             <!-- Duration presets -->
-                            <div class="timer-presets">
-                                <button class="preset-btn active" data-duration="25">25分钟</button>
-                                <button class="preset-btn" data-duration="15">15分钟</button>
-                                <button class="preset-btn" data-duration="45">45分钟</button>
-                                <button class="preset-btn" data-duration="60">60分钟</button>
+                            <div class="timer-presets" role="group" aria-label="专注时长">
+                                <button class="preset-btn" data-duration="15">15 分钟</button>
+                                <button class="preset-btn active" data-duration="25">25 分钟</button>
+                                <button class="preset-btn" data-duration="45">45 分钟</button>
+                                <button class="preset-btn" data-duration="60">60 分钟</button>
                                 <button class="preset-btn" id="preset-custom">自定义</button>
                             </div>
 
@@ -396,7 +362,7 @@
                                     <ion-icon name="play-outline" id="timer-toggle-icon"></ion-icon>
                                     <span id="timer-toggle-text">开始专注</span>
                                 </button>
-                                <button id="btn-timer-reset" class="secondary-btn">
+                                <button id="btn-timer-reset" class="text-btn">
                                     <ion-icon name="reload-outline"></ion-icon>
                                     <span>重置</span>
                                 </button>
@@ -405,136 +371,143 @@
                             <!-- Additional options -->
                             <div class="timer-options">
                                 <label class="option-toggle">
+                                    <span class="toggle-label">结束提示音</span>
                                     <input type="checkbox" id="timer-sound-alert" checked>
                                     <span class="toggle-slider"></span>
-                                    <span class="toggle-label">结束提示音</span>
                                 </label>
                             </div>
                         </div>
 
                         <!-- Right pane: Ambient Sound Mixer -->
-                        <div class="focus-pane-right">
-                            <div class="mixer-header-card card">
-                                <h3>声音潮汐混音器</h3>
-                                <p>点击卡片开启声音，滑动调节音量。组合你的专属疗愈环境声。</p>
-                                <button id="btn-mixer-mute-all" class="secondary-btn small-btn">
-                                    <ion-icon name="volume-mute-outline"></ion-icon> 暂停全部声音
+                        <div class="focus-pane-right card">
+                            <div class="mixer-header-card">
+                                <h2>环境声</h2>
+                                <p>可同时播放，独立调节每种声音。</p>
+                                <button id="btn-mixer-mute-all" class="text-btn small-btn" disabled>
+                                    <ion-icon name="volume-mute-outline"></ion-icon> 暂停全部
                                 </button>
                             </div>
 
                             <div class="soundscape-grid">
                                 <!-- 1. Rain -->
-                                <div class="sound-card card" data-sound="rain">
-                                    <div class="sound-card-main">
-                                        <div class="sound-icon-area">
+                                <div class="sound-card" data-sound="rain">
+                                    <button type="button" class="sound-card-main" aria-pressed="false">
+                                        <span class="sound-icon-area">
                                             <ion-icon name="rainy-outline"></ion-icon>
-                                        </div>
-                                        <div class="sound-info">
-                                            <h4>柔和雨声</h4>
-                                            <span class="sound-status">已静音</span>
-                                        </div>
-                                        <div class="sound-toggle-indicator"></div>
-                                    </div>
+                                        </span>
+                                        <span class="sound-info">
+                                            <strong>柔和雨声</strong>
+                                            <span class="sound-status"></span>
+                                        </span>
+                                        <span class="sound-toggle-indicator"><ion-icon name="play-outline"></ion-icon></span>
+                                    </button>
                                     <div class="sound-slider-wrapper">
                                         <ion-icon name="volume-low-outline"></ion-icon>
-                                        <input type="range" class="sound-volume-slider" min="0" max="100" value="50" disabled>
-                                        <ion-icon name="volume-high-outline"></ion-icon>
+                                        <input type="range" class="sound-volume-slider" aria-label="调节柔和雨声音量" min="0" max="100" value="50">
+                                        <span class="sound-volume-value" aria-hidden="true">50%</span>
                                     </div>
                                 </div>
 
                                 <!-- 2. Waves -->
-                                <div class="sound-card card" data-sound="waves">
-                                    <div class="sound-card-main">
-                                        <div class="sound-icon-area">
+                                <div class="sound-card" data-sound="waves">
+                                    <button type="button" class="sound-card-main" aria-pressed="false">
+                                        <span class="sound-icon-area">
                                             <ion-icon name="water-outline"></ion-icon>
-                                        </div>
-                                        <div class="sound-info">
-                                            <h4>潮起潮落</h4>
-                                            <span class="sound-status">已静音</span>
-                                        </div>
-                                        <div class="sound-toggle-indicator"></div>
-                                    </div>
+                                        </span>
+                                        <span class="sound-info">
+                                            <strong>潮起潮落</strong>
+                                            <span class="sound-status"></span>
+                                        </span>
+                                        <span class="sound-toggle-indicator"><ion-icon name="play-outline"></ion-icon></span>
+                                    </button>
                                     <div class="sound-slider-wrapper">
                                         <ion-icon name="volume-low-outline"></ion-icon>
-                                        <input type="range" class="sound-volume-slider" min="0" max="100" value="50" disabled>
-                                        <ion-icon name="volume-high-outline"></ion-icon>
+                                        <input type="range" class="sound-volume-slider" aria-label="调节潮起潮落音量" min="0" max="100" value="50">
+                                        <span class="sound-volume-value" aria-hidden="true">50%</span>
                                     </div>
                                 </div>
 
                                 <!-- 3. Wind -->
-                                <div class="sound-card card" data-sound="wind">
-                                    <div class="sound-card-main">
-                                        <div class="sound-icon-area">
+                                <div class="sound-card" data-sound="wind">
+                                    <button type="button" class="sound-card-main" aria-pressed="false">
+                                        <span class="sound-icon-area">
                                             <ion-icon name="leaf-outline"></ion-icon>
-                                        </div>
-                                        <div class="sound-info">
-                                            <h4>穿林微风</h4>
-                                            <span class="sound-status">已静音</span>
-                                        </div>
-                                        <div class="sound-toggle-indicator"></div>
-                                    </div>
+                                        </span>
+                                        <span class="sound-info">
+                                            <strong>穿林微风</strong>
+                                            <span class="sound-status"></span>
+                                        </span>
+                                        <span class="sound-toggle-indicator"><ion-icon name="play-outline"></ion-icon></span>
+                                    </button>
                                     <div class="sound-slider-wrapper">
                                         <ion-icon name="volume-low-outline"></ion-icon>
-                                        <input type="range" class="sound-volume-slider" min="0" max="100" value="50" disabled>
-                                        <ion-icon name="volume-high-outline"></ion-icon>
+                                        <input type="range" class="sound-volume-slider" aria-label="调节穿林微风音量" min="0" max="100" value="50">
+                                        <span class="sound-volume-value" aria-hidden="true">50%</span>
                                     </div>
                                 </div>
 
                                 <!-- 4. Campfire -->
-                                <div class="sound-card card" data-sound="campfire">
-                                    <div class="sound-card-main">
-                                        <div class="sound-icon-area">
+                                <div class="sound-card" data-sound="campfire">
+                                    <button type="button" class="sound-card-main" aria-pressed="false">
+                                        <span class="sound-icon-area">
                                             <ion-icon name="flame-outline"></ion-icon>
-                                        </div>
-                                        <div class="sound-info">
-                                            <h4>林中篝火</h4>
-                                            <span class="sound-status">已静音</span>
-                                        </div>
-                                        <div class="sound-toggle-indicator"></div>
-                                    </div>
+                                        </span>
+                                        <span class="sound-info">
+                                            <strong>林中篝火</strong>
+                                            <span class="sound-status"></span>
+                                        </span>
+                                        <span class="sound-toggle-indicator"><ion-icon name="play-outline"></ion-icon></span>
+                                    </button>
                                     <div class="sound-slider-wrapper">
                                         <ion-icon name="volume-low-outline"></ion-icon>
-                                        <input type="range" class="sound-volume-slider" min="0" max="100" value="50" disabled>
-                                        <ion-icon name="volume-high-outline"></ion-icon>
+                                        <input type="range" class="sound-volume-slider" aria-label="调节林中篝火音量" min="0" max="100" value="50">
+                                        <span class="sound-volume-value" aria-hidden="true">50%</span>
                                     </div>
                                 </div>
 
                                 <!-- 5. Birds -->
-                                <div class="sound-card card" data-sound="birds">
-                                    <div class="sound-card-main">
-                                        <div class="sound-icon-area">
+                                <div class="sound-card" data-sound="birds">
+                                    <button type="button" class="sound-card-main" aria-pressed="false">
+                                        <span class="sound-icon-area">
                                             <ion-icon name="musical-notes-outline"></ion-icon>
-                                        </div>
-                                        <div class="sound-info">
-                                            <h4>晨曦鸟鸣</h4>
-                                            <span class="sound-status">已静音</span>
-                                        </div>
-                                        <div class="sound-toggle-indicator"></div>
-                                    </div>
+                                        </span>
+                                        <span class="sound-info">
+                                            <strong>晨曦鸟鸣</strong>
+                                            <span class="sound-status"></span>
+                                        </span>
+                                        <span class="sound-toggle-indicator"><ion-icon name="play-outline"></ion-icon></span>
+                                    </button>
                                     <div class="sound-slider-wrapper">
                                         <ion-icon name="volume-low-outline"></ion-icon>
-                                        <input type="range" class="sound-volume-slider" min="0" max="100" value="50" disabled>
-                                        <ion-icon name="volume-high-outline"></ion-icon>
+                                        <input type="range" class="sound-volume-slider" aria-label="调节晨曦鸟鸣音量" min="0" max="100" value="50">
+                                        <span class="sound-volume-value" aria-hidden="true">50%</span>
                                     </div>
                                 </div>
 
                                 <!-- 6. Cafe -->
-                                <div class="sound-card card" data-sound="cafe">
-                                    <div class="sound-card-main">
-                                        <div class="sound-icon-area">
+                                <div class="sound-card" data-sound="cafe">
+                                    <button type="button" class="sound-card-main" aria-pressed="false">
+                                        <span class="sound-icon-area">
                                             <ion-icon name="cafe-outline"></ion-icon>
-                                        </div>
-                                        <div class="sound-info">
-                                            <h4>午后咖啡馆</h4>
-                                            <span class="sound-status">已静音</span>
-                                        </div>
-                                        <div class="sound-toggle-indicator"></div>
-                                    </div>
+                                        </span>
+                                        <span class="sound-info">
+                                            <strong>午后咖啡馆</strong>
+                                            <span class="sound-status"></span>
+                                        </span>
+                                        <span class="sound-toggle-indicator"><ion-icon name="play-outline"></ion-icon></span>
+                                    </button>
                                     <div class="sound-slider-wrapper">
                                         <ion-icon name="volume-low-outline"></ion-icon>
-                                        <input type="range" class="sound-volume-slider" min="0" max="100" value="50" disabled>
-                                        <ion-icon name="volume-high-outline"></ion-icon>
+                                        <input type="range" class="sound-volume-slider" aria-label="调节午后咖啡馆音量" min="0" max="100" value="50">
+                                        <span class="sound-volume-value" aria-hidden="true">50%</span>
                                     </div>
+                                </div>
+                            </div>
+                            <div class="audio-cache-bar">
+                                <p id="audio-cache-status" role="status">正在检查离线音轨…</p>
+                                <div class="audio-cache-actions">
+                                    <button type="button" id="btn-cache-audio" class="text-btn hidden">保存离线音轨</button>
+                                    <button type="button" id="btn-clear-audio-cache" class="text-btn hidden">移除离线音轨</button>
                                 </div>
                             </div>
                         </div>
@@ -543,65 +516,83 @@
 
                 <!-- 4. Journal View -->
                 <section id="view-journal" class="app-view">
-                    <div class="section-title-row">
+                    <header class="journal-heading">
                         <div class="section-title">
-                            <h2>心声随笔</h2>
-                            <p>温柔回溯你曾走过的天气，每一天都有意义。</p>
+                            <h1>心情日记</h1>
+                            <p id="journal-status" class="form-status" role="status" tabindex="-1"></p>
                         </div>
-                    </div>
+                        <div class="page-actions">
+                            <button type="button" class="primary-btn" data-go="weather"><ion-icon name="add-outline"></ion-icon> 新记录</button>
+                            <button type="button" class="text-btn" data-go="insights"><ion-icon name="calendar-outline"></ion-icon> 天气回顾</button>
+                        </div>
+                    </header>
 
-                    <!-- Search -->
-                    <div class="journal-filter-row card">
-                        <div class="search-box">
+                    <div class="journal-filter-row" role="search" aria-label="筛选心情日记">
+                        <label class="search-box">
                             <ion-icon name="search-outline"></ion-icon>
-                            <input type="text" id="journal-search" placeholder="搜索随笔或天气...">
+                            <span class="visually-hidden">搜索日记</span>
+                            <input type="search" id="journal-search" placeholder="搜索日记">
+                        </label>
+                        <div class="journal-filters">
+                            <label class="journal-filter">
+                                <span class="visually-hidden">天气</span>
+                                <select id="journal-weather">
+                                    <option value="">全部天气</option>
+                                    <option value="sunny">晴朗</option>
+                                    <option value="breezy">微风</option>
+                                    <option value="cloudy">阴天</option>
+                                    <option value="foggy">大雾</option>
+                                    <option value="rainy">小雨</option>
+                                    <option value="stormy">雷雨</option>
+                                </select>
+                            </label>
+                            <label class="journal-filter">
+                                <span class="visually-hidden">时间</span>
+                                <select id="journal-period">
+                                    <option value="">全部时间</option>
+                                    <option value="7">近 7 天</option>
+                                    <option value="30">近 30 天</option>
+                                </select>
+                            </label>
                         </div>
                     </div>
 
-                    <!-- Journal List Container (Supports grid columns on desktop) -->
-                    <div id="journal-list" class="journal-timeline">
-                        <!-- Dynamic Log Cards go here -->
+                    <div class="journal-result-bar">
+                        <div id="journal-day-filter" class="journal-day-filter" hidden>
+                            <button type="button" id="journal-clear-day" class="text-btn">
+                                <ion-icon name="calendar-outline"></ion-icon>
+                                <span id="journal-day-label"></span>
+                                <ion-icon name="close-outline"></ion-icon>
+                            </button>
+                        </div>
+                        <button type="button" id="journal-clear-filters" class="text-btn" hidden>清除筛选</button>
                     </div>
 
-                    <!-- Empty State -->
-                    <div id="journal-empty" class="empty-state">
+                    <div id="journal-day-weather" class="journal-day-weather" hidden></div>
+                    <div id="journal-list" class="journal-timeline"></div>
+                    <div class="journal-more">
+                        <button type="button" id="journal-load-more" class="secondary-btn" hidden>显示更多记录</button>
+                    </div>
+
+                    <div id="journal-empty" class="empty-state" hidden>
                         <ion-icon name="document-text-outline" class="empty-icon"></ion-icon>
-                        <p>你的心空尚无絮语回响，落笔记录一次内心天气或随笔吧。</p>
+                        <p></p>
+                        <button type="button" class="secondary-btn" data-go="weather">写第一条记录</button>
                     </div>
                 </section>
 
                 <!-- 5. Insights & SOS View -->
                 <section id="view-insights" class="app-view">
                     <div class="section-title">
-                        <h2>气象导图</h2>
-                        <p>倾听内心的起伏波动，静静接纳心灵的每一场风雨和晴空。</p>
+                        <h1>天气回顾</h1>
+                        <p>从过去的记录里，看看最近的日子。</p>
                     </div>
 
                     <!-- Bento Grid for Insights -->
                     <div class="insights-grid">
-                        <!-- Card 1: Climate Index Gauge Card -->
-                        <div class="card climate-gauge-card">
-                            <h3>心灵晴空指数</h3>
-                            <div class="gauge-content">
-                                <div class="gauge-visual">
-                                    <svg class="gauge-svg" viewBox="0 0 100 100">
-                                        <circle class="gauge-bg" cx="50" cy="50" r="42"></circle>
-                                        <circle class="gauge-progress" id="climate-gauge-progress" cx="50" cy="50" r="42" stroke-dasharray="263.89" stroke-dashoffset="263.89"></circle>
-                                    </svg>
-                                    <div class="gauge-text-overlay">
-                                        <span id="climate-gauge-value">--</span>
-                                        <span id="climate-gauge-status">觉察中</span>
-                                    </div>
-                                </div>
-                                <div class="gauge-description">
-                                    <p id="climate-gauge-tip">记录最近七天的内心天气，获取更贴近当下的心灵晴空指数。</p>
-                                </div>
-                            </div>
-                        </div>
 
-                        <!-- Card 2: Mindfulness Stats Card -->
                         <div class="card mindful-stats-card">
-                            <h3>正念疗愈足迹</h3>
+                            <h2>全部记录与练习</h2>
                             <div class="mindful-stats-grid">
                                 <div class="mindful-stat-item">
                                     <div class="stat-icon-wrapper theme-accent">
@@ -609,7 +600,7 @@
                                     </div>
                                     <div class="stat-info">
                                         <span class="stat-val" id="stat-total-days">0</span>
-                                        <span class="stat-lbl">随笔天数</span>
+                                        <span class="stat-lbl">记录天数</span>
                                     </div>
                                 </div>
                                 <div class="mindful-stat-item">
@@ -618,7 +609,7 @@
                                     </div>
                                     <div class="stat-info">
                                         <span class="stat-val" id="stat-top-weather">-</span>
-                                        <span class="stat-lbl">常驻气象</span>
+                                        <span class="stat-lbl">最常记录</span>
                                     </div>
                                 </div>
                                 <div class="mindful-stat-item">
@@ -627,7 +618,7 @@
                                     </div>
                                     <div class="stat-info">
                                         <span class="stat-val" id="stat-cumulative-focus">0分</span>
-                                        <span class="stat-lbl">累计专注</span>
+                                        <span class="stat-lbl">累计练习</span>
                                     </div>
                                 </div>
                                 <div class="mindful-stat-item">
@@ -636,21 +627,33 @@
                                     </div>
                                     <div class="stat-info">
                                         <span class="stat-val" id="stat-mindful-streak">0天</span>
-                                        <span class="stat-lbl">连续静心</span>
+                                        <span class="stat-lbl">连续练习</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Card 4: Weather Calendar Card -->
                         <div class="card calendar-card">
                             <div class="calendar-card-layout">
                                 <div class="calendar-card-left">
-                                    <h3>心灵气象历</h3>
-                                    <p class="card-subtitle">过去30天心灵气候轨迹</p>
-                                    <div id="weather-calendar-grid" class="weather-calendar-grid">
-                                        <!-- Rendered by JS -->
+                                    <header class="calendar-header">
+                                        <div>
+                                            <h2>天气日历</h2>
+                                            <p id="calendar-range" class="card-subtitle" role="status"></p>
+                                        </div>
+                                        <div class="calendar-pages">
+                                            <button type="button" id="calendar-previous" class="icon-btn" aria-label="查看前 30 天">
+                                                <ion-icon name="chevron-forward-outline"></ion-icon>
+                                            </button>
+                                            <button type="button" id="calendar-next" class="icon-btn" aria-label="查看后 30 天">
+                                                <ion-icon name="chevron-forward-outline"></ion-icon>
+                                            </button>
+                                        </div>
+                                    </header>
+                                    <div class="calendar-weekdays" aria-hidden="true">
+                                        <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
                                     </div>
+                                    <div id="weather-calendar-grid" class="weather-calendar-grid"></div>
                                 </div>
                                 <div class="calendar-card-right">
                                     <div class="calendar-legend">
@@ -686,18 +689,16 @@
                             </div>
                         </div>
 
-                        <!-- Card 5: Weather Distribution Chart Card -->
                         <div class="card chart-card">
-                            <h3>心灵气候分布</h3>
+                            <h2>这段时间的天气</h2>
                             <div id="weather-chart-container" class="weather-chart-list">
                                 <!-- Rendered by JS -->
                             </div>
                         </div>
 
-                        <!-- Card 3: Lifestyle Factors Analysis Card -->
                         <div class="card tags-analysis-card">
-                            <h3>生活要素关联分析</h3>
-                            <p class="card-subtitle">伴随心灵起伏的高频生活要素</p>
+                            <h2>这段时间的标签</h2>
+                            <p class="card-subtitle">按使用次数排列。</p>
                             <div id="tags-analysis-container" class="tags-analysis-list">
                                 <!-- Rendered dynamically by JS -->
                             </div>
@@ -705,83 +706,85 @@
                     </div>
                 </section>
 
-                <!-- 6. Settings & SOS View -->
+                <!-- Settings -->
                 <section id="view-settings" class="app-view">
                     <div class="section-title">
-                        <h2>数据与安全避风港</h2>
-                        <p>管理您的情绪数据记录，或在需要时寻求专业的心理援助。</p>
+                        <h1>设置</h1>
+                        <p>管理本机数据、备份和云连接。</p>
                     </div>
                     
                     <div class="settings-split-layout">
                         <div class="settings-pane-left">
-                            <!-- Export / Backup Card -->
-                            <div class="card settings-card">
-                                <h3>数据管理与云同步</h3>
-                                 <p id="sync-card-desc">当前数据保存在本地浏览器中。您可以配置云服务，开启多设备同步。</p>
+                            <section class="card settings-card" id="profile-settings-card">
+                                <h2>外观与称呼</h2>
+                                <label class="theme-setting">主题
+                                    <select id="preferred-theme">
+                                        <option value="">跟随系统</option>
+                                        <option value="light">浅色</option>
+                                        <option value="dark">深色</option>
+                                    </select>
+                                </label>
+                                <form id="profile-form" class="profile-form" novalidate>
+                                    <label for="user-name">首页称呼</label>
+                                    <div class="profile-input-row">
+                                        <input type="text" id="user-name" maxlength="24" autocomplete="nickname" placeholder="例如：小雨">
+                                        <button type="submit" class="secondary-btn" id="save-profile-btn">保存</button>
+                                    </div>
+                                    <p id="profile-status" class="form-status" role="status" aria-live="polite"></p>
+                                </form>
+                                <details class="font-licenses">
+                                    <summary>字体与许可</summary>
+                                    <div class="font-license-actions">
+                                        <a class="text-btn settings-inline" href="https://moji.or.jp/ipafont/license/" target="_blank" rel="noopener noreferrer">新晰黑与 IPAex 字体许可</a>
+                                        <button type="button" class="secondary-btn" data-font-choice="ipaex" data-font-label="IPAex 原版" data-font-family="IPAexGothic" data-font-source="assets/fonts/ipaexg00401/ipaexg.ttf" aria-pressed="false">将日记字体设为 IPAex 原版</button>
+                                    </div>
+                                </details>
+                            </section>
+                            <section class="card settings-card">
+                                <h2>日记与备份</h2>
+                                <p>备份包含已保存的日记、练习记录和个人偏好。请先保存想保留的草稿，再导出备份。</p>
                                 <div class="settings-actions">
-                                    <button id="btn-sync-now" class="primary-btn hidden">
-                                        <ion-icon name="cloud-upload-outline"></ion-icon> 立即合并本地至云端
-                                    </button>
-                                    <button id="btn-cloud-config" class="secondary-btn">
-                                        <ion-icon name="cloud-outline"></ion-icon> 配置云端数据库连接
-                                    </button>
-                                    <button id="btn-export-md" class="secondary-btn">
-                                        <ion-icon name="download-outline"></ion-icon> 导出并下载我的心声随笔 (.md)
-                                    </button>
-                                    <button id="btn-export-json" class="secondary-btn">
-                                        <ion-icon name="cloud-download-outline"></ion-icon> 备份我的全部数据 (.json)
-                                    </button>
-                                    <button id="btn-import-json" class="secondary-btn">
-                                        <ion-icon name="cloud-upload-outline"></ion-icon> 导入并恢复备份数据 (.json)
-                                    </button>
-                                    <input type="file" id="import-json-file-input" accept=".json" style="display: none;">
-                                    <button id="btn-clear-all" class="danger-btn">
-                                        <ion-icon name="trash-outline"></ion-icon> 彻底擦除本地数据
-                                    </button>
+                                    <button type="button" id="btn-export-md" class="secondary-btn"><ion-icon name="document-text-outline"></ion-icon> 导出日记 (.md)</button>
+                                    <button type="button" id="btn-export-json" class="secondary-btn"><ion-icon name="download-outline"></ion-icon> 导出备份 (.json)</button>
+                                    <button type="button" id="btn-import-json" class="secondary-btn"><ion-icon name="cloud-upload-outline"></ion-icon> 恢复备份 (.json)</button>
+                                    <input type="file" id="import-json-file-input" accept=".json,application/json" hidden>
                                 </div>
-                            </div>
+                                <p class="backup-note">导出的文件包含原始日记内容，请妥善保管。</p>
+                                <button type="button" id="btn-clear-all" class="text-btn clear-data"><ion-icon name="trash-outline"></ion-icon> 清除本机数据</button>
+                            </section>
                         </div>
 
                         <div class="settings-pane-right">
-                            <!-- SOS Safe Haven Panel -->
-                            <div class="card sos-card">
-                                <div class="sos-header">
-                                    <ion-icon name="heart-half-outline" class="sos-icon"></ion-icon>
-                                    <h3>安全避风港 (SOS)</h3>
+                            <section class="card settings-card">
+                                <h2>云同步</h2>
+                                <p id="sync-card-desc">你可以连接自己的 Supabase 项目，在设备间同步日记。</p>
+                                <div class="settings-actions">
+                                    <button type="button" id="btn-sync-now" class="primary-btn hidden"><ion-icon name="cloud-upload-outline"></ion-icon> 立即同步日记</button>
+                                    <button type="button" id="settings-auth-btn" class="secondary-btn hidden"><ion-icon name="person-outline"></ion-icon><span>登录云账户</span></button>
+                                    <button type="button" id="btn-sync-toggle" class="secondary-btn hidden">启用云同步</button>
+                                    <button type="button" id="btn-cloud-config" class="secondary-btn"><ion-icon name="cloud-outline"></ion-icon> 配置云同步</button>
+                                    <button type="button" id="btn-forget-cloud" class="text-btn clear-data hidden">移除云连接</button>
                                 </div>
-                                <p>如果你此刻感到极度的痛苦、无助或有自我伤害的冲动，请不要独自面对。世界正有人倾听你的声音。</p>
-                                <ul class="helpline-list">
-                                    <li>
-                                        <div class="line-name">杭州电子科技大学心理中心 (校内热线)</div>
-                                        <a href="tel:057186878592" class="line-number"><ion-icon name="call-outline"></ion-icon> 0571-86878592</a>
-                                    </li>
-                                    <li>
-                                        <div class="line-name">杭州市心理危机干预热线 (24小时市级热线)</div>
-                                        <a href="tel:057185029595" class="line-number"><ion-icon name="call-outline"></ion-icon> 0571-85029595</a>
-                                    </li>
-                                    <li>
-                                        <div class="line-name">浙江省心理卫生援助热线 (24小时省级热线)</div>
-                                        <a href="tel:96525" class="line-number"><ion-icon name="call-outline"></ion-icon> 96525</a>
-                                    </li>
-                                </ul>
-                            </div>
-                            
-                            <!-- Application Version & Update Panel -->
-                            <div class="card update-card" style="margin-top: 12px;">
-                                <div class="update-header" style="margin-bottom: 0;">
-                                    <ion-icon name="cloud-download-outline" class="update-icon"></ion-icon>
-                                    <h3>软件版本与更新</h3>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px;">
-                                    <p style="font-size: 0.85rem; margin: 0; white-space: nowrap;">
-                                        当前版本: <strong id="current-app-version">v1.1.1</strong>
-                                    </p>
-                                    <button id="btn-check-update" class="secondary-btn" style="width: auto; padding: 6px 16px; min-height: 36px; font-size: 0.8rem; border-radius: 12px; border: 1px solid var(--accent-color); color: var(--accent-color); background: transparent;">
-                                        <ion-icon name="refresh-outline" id="icon-check-update" style="font-size: 0.95rem;"></ion-icon>
-                                        <span>检查最新版本</span>
+                            </section>
+                            <section class="card settings-card" id="install-card" hidden>
+                                <h2 id="install-title">安装 MindSpace</h2>
+                                <button type="button" id="btn-install" class="secondary-btn settings-inline"><ion-icon name="download-outline"></ion-icon><span id="install-label">安装说明</span></button>
+                            </section>
+                            <section class="card settings-card">
+                                <h2>支持资源</h2>
+                                <p>想找人聊聊时，可以联系信任的人、学校心理中心或当地的专业支持服务。</p>
+                                <a class="text-btn settings-inline" target="_blank" rel="noopener noreferrer" href="https://www.nhc.gov.cn/xcs/c100122/202512/9731f93a7e0d451284a0da462527cbd2.shtml">查看中国大陆官方支持信息</a>
+                            </section>
+                            <section class="card settings-card">
+                                <h2>软件更新</h2>
+                                <div class="settings-version">
+                                    <p>当前版本 <strong id="current-app-version">v1.2.72</strong></p>
+                                    <button type="button" id="btn-check-update" class="secondary-btn small-btn">
+                                        <ion-icon name="refresh-outline" id="icon-check-update"></ion-icon><span>检查更新</span>
                                     </button>
                                 </div>
-                            </div>
+                                <p id="app-update-status" role="status" hidden></p>
+                            </section>
                         </div>
                     </div>
                 </section>
@@ -789,45 +792,28 @@
             </main>
 
             <!-- Bottom Navigation (Mobile only) -->
-            <nav id="bottom-nav">
-                <button class="nav-item active" data-view="dashboard">
-                    <ion-icon name="home-outline"></ion-icon>
-                    <span>首页</span>
-                </button>
-                <button class="nav-item" data-view="weather">
-                    <ion-icon name="partly-sunny-outline"></ion-icon>
-                    <span>天气</span>
-                </button>
-                <button class="nav-item" data-view="breathing">
-                    <ion-icon name="infinite-outline"></ion-icon>
-                    <span>呼吸</span>
-                </button>
-                <button class="nav-item" data-view="focus">
-                    <ion-icon name="hourglass-outline"></ion-icon>
-                    <span>专注</span>
-                </button>
-                <button class="nav-item" data-view="journal">
-                    <ion-icon name="book-outline"></ion-icon>
-                    <span>心声</span>
-                </button>
-                <button class="nav-item" data-view="insights">
-                    <ion-icon name="map-outline"></ion-icon>
-                    <span>导图</span>
-                </button>
-                <button class="nav-item" data-view="settings">
-                    <ion-icon name="shield-checkmark-outline"></ion-icon>
-                    <span>安全</span>
-                </button>
+            <nav id="bottom-nav" aria-label="底部导航">
+                <button type="button" class="nav-item active" data-view="dashboard"><ion-icon name="home-outline"></ion-icon><span>今日</span></button>
+                <button type="button" class="nav-item" data-view="weather"><ion-icon name="partly-sunny-outline"></ion-icon><span>记录</span></button>
+                <button type="button" class="nav-item" data-view="breathing"><ion-icon name="leaf-outline"></ion-icon><span>呼吸</span></button>
+                <button type="button" class="nav-item" data-view="focus"><ion-icon name="timer-outline"></ion-icon><span>专注</span></button>
+                <button type="button" class="nav-item" data-view="journal"><ion-icon name="book-outline"></ion-icon><span>日记</span></button>
+                <button type="button" class="nav-item" data-view="settings"><ion-icon name="settings-outline"></ion-icon><span>设置</span></button>
             </nav>
         </div>
     </div>
 
+    <div id="toast" class="toast hidden">
+        <span id="toast-message" role="status"></span>
+        <button type="button" id="toast-action" class="text-btn hidden"></button>
+    </div>
+
     <!-- Modals -->
-    <div id="modal-container" class="modal-overlay hidden">
+    <div id="modal-container" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal card">
             <div class="modal-header">
                 <h3 id="modal-title">提示</h3>
-                <button id="modal-close" class="icon-btn"><ion-icon name="close-outline"></ion-icon></button>
+                <button type="button" id="modal-close" class="icon-btn" aria-label="关闭"><ion-icon name="close-outline"></ion-icon></button>
             </div>
             <div class="modal-content" id="modal-body">
                 <!-- Filled dynamically -->
@@ -841,37 +827,38 @@
 
 
     <!-- Cloud Config Modal -->
-    <div id="cloud-config-modal" class="modal-overlay hidden">
+    <div id="cloud-config-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="cloud-config-title">
         <div class="modal card">
             <div class="modal-header">
-                <h3>配置云端数据库</h3>
-                <button class="icon-btn modal-close-btn"><ion-icon name="close-outline"></ion-icon></button>
+                <h3 id="cloud-config-title">配置云同步</h3>
+                <button type="button" class="icon-btn modal-close-btn" aria-label="关闭"><ion-icon name="close-outline"></ion-icon></button>
             </div>
             <div class="modal-content">
                 <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5;">
-                    本应用采用 Supabase 作为云端存储。您可以在此处配置您的 Supabase 连接凭证，即可使用多端云账户同步。如果部署在公开的 GitHub，可清空代码中的 config.js 并在此处配置。
+                    请使用你自己的 Supabase 项目。登录并启用同步后，心情日记会上传到该项目；练习统计保留在这台设备。
                 </p>
                 <div class="form-group">
                     <label for="config-url">Supabase API URL</label>
                     <input type="url" id="config-url" placeholder="https://your-project.supabase.co" required>
                 </div>
                 <div class="form-group">
-                    <label for="config-anon-key">Supabase Anon Key (公钥)</label>
-                    <textarea id="config-anon-key" placeholder="请输入您的 Supabase Anon Key (公钥)" required rows="4" style="resize: none;"></textarea>
+                    <label for="config-anon-key">Supabase 公钥</label>
+                    <textarea id="config-anon-key" placeholder="请输入您的 Supabase 公钥" required rows="4" style="resize: none;"></textarea>
                 </div>
+                <p id="config-error" class="field-error" role="alert"></p>
                 <div class="modal-actions" style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
-                    <button type="button" id="btn-save-config" class="primary-btn" style="flex: 1;">保存并测试连接</button>
+                    <button type="button" id="btn-save-config" class="primary-btn" style="flex: 1;">保存连接设置</button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Auth Modal (Login / Register) -->
-    <div id="auth-modal" class="modal-overlay hidden">
+    <div id="auth-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
         <div class="modal card">
             <div class="modal-header">
                 <h3 id="auth-modal-title">加入心空</h3>
-                <button class="icon-btn modal-close-btn"><ion-icon name="close-outline"></ion-icon></button>
+                <button type="button" class="icon-btn modal-close-btn" aria-label="关闭"><ion-icon name="close-outline"></ion-icon></button>
             </div>
             <div class="modal-content">
                 <!-- Auth Loading State -->
@@ -923,7 +910,7 @@
                         <span id="user-display-email" class="user-email-text">user@example.com</span>
                     </div>
                     <p class="auth-sync-desc">
-                        您的账号已成功开启云同步，所有的心情天气与随笔均会自动同步保存，多设备随时随地无阻访问。
+                        云同步可在设置中单独开启或暂停。
                     </p>
                     
                     <!-- 修改密码区域 -->
@@ -956,15 +943,16 @@
     </div>
 
     <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4"></script>
-    <script src="js/version.js?v=1.1.1"></script>
-    <script src="js/config.js?v=1.1.1"></script>
-    <script src="js/supabase-service.js?v=1.1.1"></script>
-    <script src="js/quotes.js?v=1.1.1"></script>
-    <script src="js/storage.js?v=1.1.1"></script>
-    <script src="js/breathing.js?v=1.1.1"></script>
-    <script src="js/focus.js?v=1.1.1"></script>
-    <script src="js/app.js?v=1.1.1"></script>
-    <script src="js/pwa.js?v=1.1.1"></script>
+    <script src="js/icons.js?v=1.2.72"></script>
+    <script src="js/version.js?v=1.2.72"></script>
+    <script src="js/config.js?v=1.2.72"></script>
+    <script src="js/supabase-service.js?v=1.2.72"></script>
+    <script src="js/storage.js?v=1.2.72"></script>
+    <script src="assets/vendor/quill/quill-2.0.3.core.js"></script>
+    <script src="js/journal-editor.js?v=1.2.72"></script>
+    <script src="js/breathing.js?v=1.2.72"></script>
+    <script src="js/focus.js?v=1.2.72"></script>
+    <script src="js/app.js?v=1.2.72"></script>
+    <script src="js/pwa.js?v=1.2.72"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 {
   "name": "mindspace",
-  "version": "1.1.1",
+  "version": "1.2.72",
   "description": "MindSpace - 本地优先的心理健康与正念呼吸引导助手。",
   "author": {
     "name": "wangjiehu",
@@ -10,6 +10,7 @@
   "main": "desktop/main.cjs",
   "scripts": {
     "serve": "http-server . -a 127.0.0.1 -p 4289 -c-1",
+    "test": "node --test tests/state.cjs tests/practice.cjs tests/offline.cjs",
     "verify:release": "node scripts/verify-release.cjs",
     "test:safari": "node --test tests/native-compat.cjs",
     "test:compat": "npm run test:safari",
