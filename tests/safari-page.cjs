@@ -61,7 +61,7 @@ async function openSafari(width, height, release) {
             el.scrollIntoView({block:"center",behavior:"instant"});
             const r=el.getBoundingClientRect();
             return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
-          },el),5000);
+          },el),5000, "Cannot click " + by.toString());
           await el.click();
         },
         text: async () => (await target()).getText(),
@@ -80,7 +80,7 @@ async function openSafari(width, height, release) {
       evaluate: fn => driver.executeScript(fn),
       viewportSize: () => driver.executeScript("return {width: innerWidth, height: innerHeight}"),
       locator: css => locator(By.css(css)),
-      byText: (text, tag="*") => locator(By.xpath("//body//"+tag+"[contains(normalize-space(.),'"+text+"') and not(*[contains(normalize-space(.),'"+text+"')])]")),
+      byText: (text, tag="*") => locator(By.xpath("//body//"+tag+"[normalize-space(.)='"+text+"']")),
       xpath: expression => locator(By.xpath(expression)),
       errors: async () => errors.concat(await driver.executeScript("return window.testErrors")),
       close

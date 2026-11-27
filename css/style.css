@@ -907,6 +907,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
 }
 
 .toast {
+    pointer-events: none;
     position: fixed;
     inset: auto max(18px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) auto;
     z-index: 9;
@@ -923,7 +924,7 @@ body:has(.modal-overlay:not(.hidden)) { overflow: hidden; }
     box-shadow: 0 5px 21px #0002;
 }
 #toast-message { min-width: 0; overflow-wrap: anywhere; }
-.toast .text-btn { flex: none; min-height: 44px; background: var(--accent-bg); color: var(--accent-color); }
+.toast .text-btn { pointer-events: auto; flex: none; min-height: 44px; background: var(--accent-bg); color: var(--accent-color); }
 .toast .text-btn:hover { border-color: var(--accent-color); }
 .calendar-day.has-note::after { content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%; bottom: 4px; background: currentColor; }
 

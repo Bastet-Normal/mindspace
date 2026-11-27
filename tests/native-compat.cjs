@@ -136,14 +136,18 @@ for (const [width, height] of [[1440, 900], [1024, 768], [768, 900], [390, 844],
             const stationary = [anchor, note, save].every((element, index) =>
                 Math.abs(element.getBoundingClientRect().top - baseline[index]) < 1);
             const panel = tagDetails.querySelector(".entry-tag-panel").getBoundingClientRect();
-            const tag = document.getElementById("custom-tag-input");
-            const tagBorder = getComputedStyle(tag).borderColor;
-            tag.focus();
-            const tagFocus = getComputedStyle(tag);
-            return [writingFocus, stationary && panel.bottom < baseline[0],
-                tagFocus.outlineOffset === "-1px" && tagFocus.borderColor !== tagBorder];
+            return [writingFocus, stationary && panel.bottom < baseline[0]];
         });
-        expect(editorFocus).toEqual([true, true, true]);
+        expect(editorFocus).toEqual([true, true]);
+        const tag = page.locator("#custom-tag-input");
+        const idleBorder = await tag.evaluate(element => getComputedStyle(element).borderTopColor);
+        await tag.click();
+        await waitFor(() => tag.evaluate(element => ({
+            focused: document.activeElement === element,
+            offset: getComputedStyle(element).outlineOffset
+        })), { focused: true, offset: "-1px" });
+        expect(await tag.evaluate(element => getComputedStyle(element).borderTopColor)).not.toBe(idleBorder);
+        await page.locator("#tag-details summary").click();
         await page.locator("#mood-note").fill("兼容性测试记录");
         await page.evaluate(() => app.journalEditor.view.setSelection(3, 2));
         await page.locator("#font-details summary").click();
@@ -216,7 +220,7 @@ for (const [width, height] of [[1440, 900], [1024, 768], [768, 900], [390, 844],
         await page.locator("#journal-search").fill("小雨 已修改");
         await waitFor(() => page.locator(".journal-card").count(), 1);
         expect(await page.locator(".journal-note-preview").text()).toBe("已修改的随笔");
-        const dayWeather = await page.locator("#journal-day-weather").text();
+        const dayWeather = (await page.locator("#journal-day-weather").text()).replace(/\s+/g, ' ');
         expect(dayWeather).toMatch(/小雨 1\.5 分/);
         expect(dayWeather).toMatch(/微风 0\.5 分/);
         await page.locator("#journal-clear-filters").click();
